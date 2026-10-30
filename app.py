@@ -29,6 +29,8 @@ import detector
 from flask import Flask, jsonify, request
 import audit
 import config
+import scoring
+import stylometry 
 
 app = Flask(__name__)
 
@@ -219,6 +221,9 @@ def submit():
             "message": "that text is too short to score, please send a few sentences",
         }), 400
 
+    style_score = stylometry.style_signal(text)
+    combined_score = scoring.combine_signals(model_score, style_score)
+
     content_id = str(uuid.uuid4())
     guess = "human"
     label = "Unsure"
@@ -228,6 +233,8 @@ def submit():
         creator_id=creator_id,
         guess=guess,
         model_score=model_score,
+        style_score=style_score,
+        combined_score=combined_score,
         label=label,
     )
 
@@ -236,11 +243,13 @@ def submit():
         "creator_id": creator_id,
         "text_length": len(text),
         "guess": guess,
-        "confidence": 0.5,
+        "confidence": round(combined_score, 4),
         "label": label,
         "model_score": model_score,
-        "style_score": 0.5,
+        "style_score": style_score,
     })
+
+
 
 @app.post("/appeal")
 def appeal():
