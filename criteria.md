@@ -42,63 +42,62 @@ Two things worth knowing before you pick numbers:
   a **miss**.
 
 ---
-## 1.
+## 1. Plain human writing is not accused (false positives)
 
-<!-- Your criterion. It must name a number. -->
+Of 10 plain-English essays (about 100 words, short sentences, common words,
+written like a second-language writer), at most 1 is labelled "Likely AI",
+in all three trials.
 
-
-
-**Why this target:**
-
-
-
----
-
-## 2.
-
-<!-- Your criterion. -->
-
-
-
-**Why this target:**
-
-
+**Why this target:** A wrong accusation costs a real writer much more than a
+missed detection costs the site. The model signal rewards plain, common-word
+writing as machine-like, so this is the writer it is most likely to get wrong.
+At most 1 in 10 allows for some error without treating the accusation as free.
 
 ---
 
-## 3.
+## 2. Obviously AI text is caught (score spread)
 
-<!-- Your criterion. -->
+Of 10 generic chatbot-written paragraphs (about 100 words), at least 8 are
+labelled "Likely AI", in all three trials.
 
-
-
-**Why this target:**
-
-
-
----
-
-## 4.
-
-<!-- Your criterion. -->
-
-
-
-**Why this target:**
-
-
+**Why this target:** The system has to do its job, but missing some AI text is
+the cheaper mistake, so the bar is lower than criterion 1. "Unsure" counts as a
+miss here.
 
 ---
 
-## 5.
+## 3. Bad input is rejected, never crashes (bad input)
 
-<!-- Your criterion. -->
+Of 5 bad requests (`text` empty, `text` missing, `text` only spaces, `text`
+null, whole body not JSON), all 5 return status 400 with the message "did you
+mean to send an empty message?", and none return a 500.
 
+**Why this target:** A crash on malformed input is one of the most common real
+failures. A 400 tells a calling program the request was bad, and the same
+message means the writer is never left guessing.
 
+---
 
-**Why this target:**
+## 4. A valid appeal always changes status and is recorded (appeal path)
 
+Of 10 appeals with a valid `content_id` and `reasoning`, all 10 return a
+confirmation with status `under_review`, and `/log` shows the item as
+`under_review` for all 10.
 
+**Why this target:** The appeal is the only thing between a wrong accusation
+and nothing at all, so it should work every time, not most of the time.
+
+---
+
+## 5. An unknown id fails loudly (appeal path)
+
+Of 5 appeals with a `content_id` that doesn't exist, all 5 return status 404
+with a message that the id was not found, and none of them change any item to
+`under_review`.
+
+**Why this target:** A typo in the id that fails silently looks like a broken
+endpoint, and the writer can't tell their appeal wasn't recorded. A 404 with a
+clear message lets them fix it and try again.
 
 ---
 
