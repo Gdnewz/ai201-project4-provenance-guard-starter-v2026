@@ -25,9 +25,8 @@ Routes:
 """
 
 import uuid
-
+import detector 
 from flask import Flask, jsonify, request
-
 import audit
 import config
 
@@ -201,16 +200,47 @@ def submit():
     """
     payload = request.get_json(silent=True) or {}
 
-    # TODO: delete this and build the route.
-    return jsonify({
-        "error": "not_implemented",
-        "message": "POST /submit isn't built yet — see the TODO in app.py.",
-        "you_sent": {
-            "text_length": len(payload.get("text", "")),
-            "creator_id": payload.get("creator_id"),
-        },
-    }), 501
+    text = payload.get("text")
+    creator_id = payload.get("creator_id") or "unknown"
 
+    if not isinstance(text, str) or not text.strip():
+        audit.log_rejection(creator_id=creator_id, reason="empty_text")
+        return jsonify({
+            "error": "empty_text",
+            "message": "did you mean to send an empty message?",
+        }), 400
+
+    try:
+        model_score = detector.model_signal(text)
+    except ValueError:
+        audit.log_rejection(creator_id=creator_id, reason="text_too_short")
+        return jsonify({
+            "error": "text_too_short",
+            "message": "that text is too short to score, please send a few sentences",
+        }), 400
+
+    content_id = str(uuid.uuid4())
+    guess = "human"
+    label = "Unsure"
+
+    audit.log_decision(
+        content_id=content_id,
+        creator_id=creator_id,
+        guess=guess,
+        model_score=model_score,
+        label=label,
+    )
+
+    return jsonify({
+        "content_id": content_id,
+        "creator_id": creator_id,
+        "text_length": len(text),
+        "guess": guess,
+        "confidence": 0.5,
+        "label": label,
+        "model_score": model_score,
+        "style_score": 0.5,
+    })
 
 @app.post("/appeal")
 def appeal():
