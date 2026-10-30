@@ -228,6 +228,8 @@ def submit():
     guess = "human"
     label = "Unsure"
 
+    guess, label = scoring.score_to_label(combined_score)
+    
     audit.log_decision(
         content_id=content_id,
         creator_id=creator_id,
@@ -272,13 +274,33 @@ def appeal():
     wrong accusation and nothing at all.
     """
     payload = request.get_json(silent=True) or {}
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
 
-    # TODO: delete this and build the route.
+    if (not isinstance(content_id, str) or not content_id.strip()
+            or not isinstance(reasoning, str) or not reasoning.strip()):
+        return jsonify({
+            "error": "missing_fields",
+            "message": "please send both content_id and reasoning",
+        }), 400
+
+    entries = audit.entries_for(content_id)
+    if not entries:
+        return jsonify({
+            "error": "not_found",
+            "message": "we couldn't find that content_id, please check it and try again",
+        }), 404
+
+    audit.log_appeal(
+        content_id=content_id,
+        creator_id=entries[0]["creator_id"],
+        reasoning=reasoning,
+    )
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "content_id": content_id,
+        "status": "under_review",
+        "message": "Thanks. Your appeal has been recorded and a person will review it.",
+    })
 
 
 # ── Already works ─────────────────────────────────────────────────────────────
