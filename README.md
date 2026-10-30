@@ -36,121 +36,103 @@
 
 ## What This Does
 
-<!-- The path a submission takes, from arriving to the label a reader sees.
-     Six or seven steps — this is the trace you wrote in Milestone 1. -->
+1. **A request arrives** at `POST /submit` with `text` and `creator_id`.
+2. **Input check.** If `text` is missing, empty or only spaces, the service rejects it with a 400 and the message "did you mean to send an empty message?". The rejection is written to the audit log.
+3. **Signal one (the model signal).** `detector.model_signal(text)` runs the text through a local gpt2 model and returns a number from 0 to 1 (higher = more likely AI). Text too short to score is rejected with a 400 and logged.
+4. **Signal two (the style signal).** `stylometry.style_signal(text)` measures the shape of the text and returns a number from 0 to 1 (higher = more likely AI).
+5. **Combine.** `scoring.combine_signals(...)` merges the two into one score with a weighted average (0.7 model, 0.3 style).
+6. **Label.** `scoring.score_to_label(...)` turns the score into a guess (`ai`, `unsure` or `human`) and the sentence the writer reads.
+7. **Log and answer.** `audit.log_decision(...)` records the `content_id`, both signal scores, the combined score, the label and the status `decided`. The writer gets `content_id`, `guess`, `confidence`, `label`, `model_score` and `style_score` as JSON.
 
-
+If the writer disagrees, they send `POST /appeal` with the `content_id` and their `reasoning`. The service checks the id exists (404 if not), records the appeal in the log, and the item becomes `under_review`. Nothing is re-checked automatically. A person looks at it.
 
 ---
 
 ## Signals and Scoring
 
-<!-- For each signal: what property it measures, why that might differ between
-     human and AI writing, and WHAT IT CAN'T SEE.
-
-     The blind spot is not optional. If you can't name it you don't understand
-     the signal yet — and unit 8's attack set is built out of blind spots. -->
-
 ### Signal one — the model signal
 
-**What it measures:**
+**What it measures:** How predictable the text is to a language model (gpt2, running on my own machine). The perplexity is turned into a 0 to 1 score, where higher means more likely AI.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** A language model picks likely next words, so text a model wrote tends to be easy for another model to predict. Human writing is more surprising.
 
-**What it can't see:**
+**What it can't see:** Who actually wrote it. Predictability isn't authorship. Plain writing with common words and short sentences (a second-language writer, a younger writer, anyone writing plainly on purpose) scores as machine-like, while ornate prose with rare words scores as human. In my own tests, a plain essay I wrote scored 0.886 and an ornate paragraph scored 0.22, and both were written by people. It also refuses text shorter than a few sentences.
 
 ### Signal two — the style signal
 
-**What it measures:**
+**What it measures:** The shape of the text without reading it. Three measures, averaged equally: sentence-length spread (standard deviation divided by the mean), vocabulary variety (unique words over total words, on the first 100 words), and punctuation density (commas, semicolons, colons, dashes and brackets per word). Each is flipped and scaled into a 0 to 1 AI-ness score.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** Generated prose tends toward even, mid-length sentences and a narrower band of vocabulary. Human writing is lumpier, with short sentences next to long ones.
 
-**What it can't see:**
+**What it can't see:** What the text says. Typos, broken-up sentences or a pasted quotation shift the score without changing the substance, and that is cheap to do on purpose. It is also noisy on short texts: my ornate two-sentence paragraph has two sentences of the same length, so its spread measure read it as even-paced and the style score leaned AI (0.42) even though a person wrote it. The cutoff numbers inside `style_signal` are starting guesses and are not tuned yet.
 
 ### The combining rule
 
-<!-- Write the rule in words, then give the numbers. What happens when the two
-     signals disagree? -->
+**The rule:** A weighted average of the two signals, weighted toward the model signal: `combined = 0.7 × model_score + 0.3 × style_score`. When the two disagree, the result lands between them, closer to the model signal.
 
-**The rule:**
-
-**The numbers:**
+**The numbers:** 0.7 model, 0.3 style (set in `config.py`). Thresholds: below 0.35 is "human", 0.35 to 0.65 is "unsure", above 0.65 is "AI". I trust the model signal more because it measures predictability, which is closer to what I'm trying to detect, and the style signal is easy to fool. The cost is that the model signal's blind spot (plain writing) counts for more in the final score.
 
 **Where it lives:** `scoring.py::combine_signals`
 
-<!-- ⚠️ The grader checks your code against that line. If your rule lives
-     somewhere else, say where. -->
-
 **A case where my two signals split, and what my rule does with it:**
 
-
+I submitted a plain 134-character essay I wrote myself ("I went to the store yesterday..."). The model signal scored it 0.886 (AI) and the style signal scored it 0.3167 (human). My rule combined them to 0.7152, which is above the 0.65 threshold, so the writer is told the text may have been written with AI. The style signal pulled the score down by about 0.17, but not enough to cross the threshold. That's the false positive this project is about, and it's why the appeal path exists. The opposite split was the ornate paragraph: model 0.22 (human), style 0.4216 (leaning AI), combined 0.2805, labelled human.
 
 ---
 
 ## Label Variants
 
-<!-- The exact text of all three labels, as a reader would see them, and the
-     score range each covers.
-
-     Write them for someone who has never heard the word "threshold". -->
-
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | 0.00 – 0.35 | We think this was probably written by a person. |
+| unsure | 0.35 – 0.65 | We can't tell whether this was written by a person or by AI. This isn't a judgment against you, and you can ask for a review if you'd like one. |
+| high-confidence AI | 0.65 – 1.00 | We think this may have been written with AI. We can be wrong, so if you wrote it yourself, you can appeal and a person will take a look. |
 
 **Why I worded the "unsure" one this way:**
-<!-- It's the hardest of the three. It has to admit uncertainty without
-     sounding like an accusation, because the person reading it may well have
-     written every word themselves. -->
 
-
+The person reading it may well have written every word themselves, so it admits the system can't tell without suggesting they did anything wrong. It says outright that it isn't a judgment against them, and it offers a review so they have somewhere to go.
 
 ---
 
 ## Sample Run
 
-<!-- One submission and one appeal, pasted as text: the request, the response,
-     and the log entries. -->
-
 **A submission**
 
-<!-- The response needs content_id, guess, confidence, label, AND both
-     signal scores - model_score and style_score. Unit 8's tools read those
-     two off the response, so leaving them out costs you next unit's
-     diagnostics. -->
-
 ```bash
-$ curl -X POST http://127.0.0.1:5000/submit \
-  -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+$ curl.exe -X POST http://127.0.0.1:5000/submit -H "Content-Type: application/json" -d '{"text": "I went to the store yesterday. It was crowded, so I waited in line for a long time. When I got home, I made dinner and watched a show.", "creator_id": "goody"}'
 ```
 
 ```json
-
+{
+  "confidence": 0.7152,
+  "content_id": "90d94a4b-cbbf-4e34-9b19-afd4f3cc72a2",
+  "creator_id": "goody",
+  "guess": "ai",
+  "label": "We think this may have been written with AI. We can be wrong, so if you wrote it yourself, you can appeal and a person will take a look.",
+  "model_score": 0.886,
+  "style_score": 0.3167,
+  "text_length": 134
+}
 ```
 
 **An appeal**
 
 ```bash
-$ curl -X POST http://127.0.0.1:5000/appeal \
-  -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+$ curl.exe -X POST http://127.0.0.1:5000/appeal -H "Content-Type: application/json" -d '{"content_id": "90d94a4b-cbbf-4e34-9b19-afd4f3cc72a2", "reasoning": "I wrote this myself."}'
 ```
 
 ```json
-
+PASTE YOUR REAL APPEAL RESPONSE HERE
 ```
 
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl.exe "http://127.0.0.1:5000/log?limit=3"
 ```
 
 ```json
-
+PASTE YOUR REAL LOG OUTPUT HERE
 ```
 
 ---
@@ -159,15 +141,15 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* A draft of my Milestone 1 trace: the path a submission takes, the two signals with their blind spots, the false-positive case, and the endpoint shapes.
+- *What came back:* A full draft, but it guessed some details, including the file names, the 0.80 and 0.40 thresholds and the error codes.
+- *What I changed:* I checked it against `running.md`, `app.py` and `config.py`, corrected the thresholds to 0.35 and 0.65, added `model_score` and `style_score` to the response shape, chose my own weights (0.7 and 0.3) and my own rule for empty text (reject with a 400), and wrote my five criteria in the form "given X, the system returns Y".
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* The three style measures and `style_signal` in `stylometry.py`.
+- *What came back:* Working code for sentence-length spread, vocabulary variety and punctuation density, with cutoff numbers (0.7, 0.55 to 0.85, 0.12) that were starting guesses.
+- *What I changed:* I ran it on my own texts and checked that I got the same numbers (style_signal 0.3167 on my plain essay), then wired it into `/submit` and confirmed the combined score matched my hand calculation (0.7152). The cutoffs are still untuned. <!-- EDIT: add anything you change after tuning them -->
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
