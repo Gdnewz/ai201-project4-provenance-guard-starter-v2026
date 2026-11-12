@@ -122,7 +122,11 @@ $ curl.exe -X POST http://127.0.0.1:5000/appeal -H "Content-Type: application/js
 ```
 
 ```json
-PASTE YOUR REAL APPEAL RESPONSE HERE
+{
+  "content_id": "90d94a4b-cbbf-4e34-9b19-afd4f3cc72a2",
+  "message": "Thanks. Your appeal has been recorded and a person will review it.",
+  "status": "under_review"
+}
 ```
 
 **What the log shows afterwards**
@@ -132,8 +136,45 @@ $ curl.exe "http://127.0.0.1:5000/log?limit=3"
 ```
 
 ```json
-PASTE YOUR REAL LOG OUTPUT HERE
+{
+  "count": 3,
+  "entries": [
+    {
+      "ai_threshold": 0.65,
+      "combined_score": 0.31683999999999996,
+      "content_id": "98264d07-6931-4066-a934-2847e8ff0ce6",
+      "creator_id": "eval_appeal_t3_10",
+      "guess": "human",
+      "human_threshold": 0.35,
+      "label": "We think this was probably written by a person.",
+      "model_score": 0.4288,
+      "status": "decided",
+      "style_score": 0.0556,
+      "timestamp": "2026-11-12T17:18:25+00:00",
+      "weight_model": 0.7,
+      "weight_style": 0.3
+    },
+    {
+      "content_id": "98264d07-6931-4066-a934-2847e8ff0ce6",
+      "creator_id": "eval_appeal_t3_10",
+      "event": "appeal",
+      "reasoning": "eval appeal",
+      "status": "under_review",
+      "timestamp": "2026-11-12T17:18:26+00:00"
+    },
+    {
+      "content_id": "90d94a4b-cbbf-4e34-9b19-afd4f3cc72a2",
+      "creator_id": "goody",
+      "event": "appeal",
+      "reasoning": "I wrote this myself.",
+      "status": "under_review",
+      "timestamp": "2026-11-12T17:27:55+00:00"
+    }
+  ]
+}
 ```
+
+The first two entries are from my last evaluation run (an essay submitted and appealed by `eval_appeal_t3_10`). The last entry is the appeal above, on the sample submission, now `under_review`.
 
 ---
 
@@ -149,7 +190,7 @@ PASTE YOUR REAL LOG OUTPUT HERE
 
 - *What I asked for:* The three style measures and `style_signal` in `stylometry.py`.
 - *What came back:* Working code for sentence-length spread, vocabulary variety and punctuation density, with cutoff numbers (0.7, 0.55 to 0.85, 0.12) that were starting guesses.
-- *What I changed:* I ran it on my own texts and checked that I got the same numbers (style_signal 0.3167 on my plain essay), then wired it into `/submit` and confirmed the combined score matched my hand calculation (0.7152). The cutoffs are still untuned. <!-- EDIT: add anything you change after tuning them -->
+- *What I changed:* I ran it on my own texts and checked that I got the same numbers (style_signal 0.3167 on my plain essay), then wired it into `/submit` and confirmed the combined score matched my hand calculation (0.7152). The cutoffs are still untuned.
 
 **Moment 3 (unit 8)**
 
