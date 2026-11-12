@@ -151,6 +151,24 @@ PASTE YOUR REAL LOG OUTPUT HERE
 - *What came back:* Working code for sentence-length spread, vocabulary variety and punctuation density, with cutoff numbers (0.7, 0.55 to 0.85, 0.12) that were starting guesses.
 - *What I changed:* I ran it on my own texts and checked that I got the same numbers (style_signal 0.3167 on my plain essay), then wired it into `/submit` and confirmed the combined score matched my hand calculation (0.7152). The cutoffs are still untuned. <!-- EDIT: add anything you change after tuning them -->
 
+**Moment 3 (unit 8)**
+
+- *What I asked for:* Help extending `run_eval.py` so criteria 4 and 5 could be tested, since the starter file could only send text and bad request bodies.
+- *What came back:* An `appeal_rows` function that submits my essays, appeals each `content_id` and sends five unknown ids, with guessed field names for the appeal body (`reason` and `creator_id`).
+- *What I changed:* I checked the `/appeal` route in `app.py`, found it reads `reasoning` and does not need `creator_id`, and corrected both calls before running, so the 400s a wrong field name would have produced did not get recorded as failures.
+
+**Moment 4 (unit 8)**
+
+- *What I asked for:* Ten generic chatbot paragraphs for criterion 2, because that criterion needs AI-written text. I wrote the ten essays for criterion 1 myself.
+- *What came back:* Ten paragraphs on everyday topics in a typical chatbot style.
+- *What I changed:* Nothing. I used all ten as they were and left the target at 8 of 10 after the service labelled only 6 of them `ai`.
+
+**Moment 5 (unit 8)**
+
+- *What I asked for:* The one improvement for Milestone 5, after choosing input validation as the change my diagnoses pointed at most clearly.
+- *What came back:* A `check_submission` function with six checks and a 10,000 character limit, tested on sixteen sample inputs before I ran anything.
+- *What I changed:* I ran the full attack set and my five criteria again and reported what it did not fix. The 10,000 character limit is a number that was suggested to me and not one I measured against real use.
+
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
 ---
@@ -564,17 +582,19 @@ Run: `python run_attacks.py --set attack_set --label after`, written to `results
 
 ## What's Still Broken
 
-<!-- For each attack still getting through and each criterion still missed:
-     what you'd do, and why you stopped. -->
+After the one change in Milestone 5, 19 of 56 attacks still come out BROKE, criterion 2 is still missed, and two rows were never re-tested. They fall into five groups, and four of the five come from the same weakness, which is how the two signals are read and combined.
 
+**1. Genuine human writing still labelled `ai` (FP02 to FP07, six rows).** What I'd do: stop letting the model signal carry an accusation on its own, for example by requiring both signals to lean the same way before the label is `ai`, and by testing a threshold change against all eight false-positive inputs and my own essays together. Why I stopped: any change that protects FP03 also lowers the score of real AI text, and I could not move one without the other in one milestone, so I fixed the part with no trade-off instead.
 
+**2. AI text labelled `human` or `unsure` (EV01 to EV09 and PI02, ten rows).** What I'd do: treat unusually low predictability as a reason to be unsure rather than a reason to say `human`, and add a third signal that does not depend on how predictable the words are. Why I stopped: these are the attacks the style signal and the model signal were each built to miss, and a third signal is more than one change.
 
-**The trade I'd make if this ran for real:**
+**3. Text that is not ordinary English writing (MF03, MF05, MF07).** What I'd do: lower the maximum length, reject text with a single very long word, and give non-English text its own answer instead of a label, since the model signal was built on English and says `ai` for Arabic at 0.934. Why I stopped: I did not want the length limit to refuse a genuine long essay, and I had no long genuine essay in the attack set to test that against.
 
-<!-- Two sentences. Fewer wrong accusations means more AI text getting through.
-     Say which way you'd go and WHO PAYS FOR IT. -->
+**4. Criterion 2 is still missed (6 of 10 AI paragraphs labelled `ai`).** What I'd do: lower the weight on the style signal, since the style signal read all ten paragraphs at 0.4832 or lower while the model signal read all ten at 0.6838 or higher. I did not change the target. Why I stopped: giving the model signal more weight would also push the group 1 false positives further over the line.
 
+**5. Things I did not fully measure.** RQ08 and RQ09 (unparseable and empty bodies) came back 429 in both the attack run and the rerun, so I have not seen their new error message. Criterion 3 was judged on status codes, not on the error text. An appeal for an unknown content_id returns a 404 but leaves no entry in the audit log, so that kind of probing is invisible. What I'd do: wait out the rate limit and re-send RQ08 and RQ09, record the message text in `run_eval.py`, and log rejected appeals. Why I stopped: they are small, but they came up after my last runs.
 
+**The trade I'd make if this ran for real:** I would accept more AI text getting through in order to make fewer wrong accusations, by raising the threshold for `ai` and sending the middle to a person instead of a label. A writer who is wrongly accused pays for it in their reputation and has to prove a negative, while missed AI text costs the people who rely on the service a little more checking, so the cost of the error should sit with the side that can better afford it.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 
