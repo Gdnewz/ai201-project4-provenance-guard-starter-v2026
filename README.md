@@ -268,11 +268,11 @@ FP03, a non-native English speaker writing carefully about their first month in 
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. My own writing (10 essays) | At most 1 of 10 labelled `ai` | 1 of 10 (essay 1, 0.6638) | 1 of 10 (essay 1, 0.6638) | 1 of 10 (essay 1, 0.6638) | **Pass, at the limit** |
-| 2. AI paragraphs (10 paragraphs) | At least 8 of 10 labelled `ai` | 6 of 10 (4 `unsure`) | 6 of 10 (4 `unsure`) | 6 of 10 (4 `unsure`) | **Miss** |
-| 3. Bad requests (5) | All 5 return 400 with the service message, none 500 | 5 of 5 returned 400 | 5 of 5 returned 400 | 5 of 5 returned 400 | **Pass** (status codes) |
-| 4. Appeals (10) | All 10 return `under_review` and `/log` agrees | 10 of 10, log agrees | 10 of 10, log agrees | 10 of 10, log agrees | **Pass** |
-| 5. Unknown ids (5) | All 5 return 404 and the log does not change | 5 of 5, log 237 to 237 | 5 of 5, log 257 to 257 | 5 of 5, log 277 to 277 | **Pass** |
+| 1. My own writing (10 essays) | At most 1 of 10 labelled `ai` | 1 of 10 (essay 1, 0.6638) | 1 of 10 (essay 1, 0.6638) | 1 of 10 (essay 1, 0.6638) | **MET**, at the limit |
+| 2. AI paragraphs (10 paragraphs) | At least 8 of 10 labelled `ai` | 6 of 10 (4 `unsure`) | 6 of 10 (4 `unsure`) | 6 of 10 (4 `unsure`) | **MISSED** |
+| 3. Bad requests (5) | All 5 return 400 with the service message, none 500 | 5 of 5 returned 400 | 5 of 5 returned 400 | 5 of 5 returned 400 | **MET** on status codes (message text not measured) |
+| 4. Appeals (10) | All 10 return `under_review` and `/log` agrees | 10 of 10, log agrees | 10 of 10, log agrees | 10 of 10, log agrees | **MET** |
+| 5. Unknown ids (5) | All 5 return 404 and the log does not change | 5 of 5, log 237 to 237 | 5 of 5, log 257 to 257 | 5 of 5, log 277 to 277 | **MET** |
 
 Run file: `results/run_2026-11-12_1201_before.md`, produced by `run_eval.py --label before`. Scenarios are in `scenarios.py`. `run_eval.py` only sent texts and bad bodies on its own, so I added `appeal_rows` to it, which submits the 10 essays, appeals each returned `content_id`, and then sends 5 appeals for ids that do not exist. Criteria 4 and 5 are tested by that function.
 
@@ -466,6 +466,20 @@ Four of my ten AI paragraphs stayed under the 0.65 line in every trial:
 All ten paragraphs had a model score of 0.6838 or higher, and the highest style score across the ten was 0.4832.
 
 **My diagnosis:** The miss happens at the combining step (`scoring.py::combine_signals`), and the style signal (`stylometry.py::style_signal`) is what pulls these four paragraphs under the line. The model signal got every AI paragraph right, with all ten at 0.6838 or higher, but the style signal scored all ten at 0.4832 or lower, so it read clean chatbot writing as human leaning. With a weight of 0.3, a style score of 0.1598 on the travel paragraph takes about 0.19 off the combined score compared with a style score equal to its model score of 0.7849, and that drops it from about 0.78 to 0.5974, which is `unsure`. I did not test which of the three style measures (sentence length spread, vocabulary variety, punctuation density) causes the low scores. Using the model signal alone would have labelled all ten paragraphs `ai`, but it would also make the false positives in group 1 worse, because the model signal is the one that scored plain human writing like FP03 as AI, so the fix is not as simple as removing the style signal.
+
+### Pattern across the misses
+
+Only one criterion was missed, criterion 2, and it has the same cause as the attack-run problem in group 3 (EV02, EV03, EV04, EV06, EV07 and EV09). In both, AI-written text was labelled `unsure` because the model signal leaned the right way (0.6838 to 0.7849 on the four missed paragraphs, 0.5727 to 0.7042 in group 3) while the style signal read the same text as human (0.1598 to 0.3533 on the four paragraphs, 0.2399 to 0.4223 in group 3), and the 0.3 weight on the style signal pulled the combined score under 0.65. That is one problem, not two: the style signal reads AI text as human, and my combining rule lets it cancel a correct model signal. Everything else I measured held in all three trials, so the other four criteria show no pattern.
+
+### Were my targets too low?
+
+I don't think the criterion 2 target was too low. Catching plain chatbot paragraphs is the basic job of the service, 8 of 10 is a modest bar, and I did not change it after the miss. The other targets held, but they measure less than they sound like:
+
+- **Criterion 1 is MET but narrow.** I wrote all ten essays myself, on everyday topics, in one voice. The attack run showed that six of eight false-positive inputs were labelled `ai`, including FP03, a careful non-native English writer. Passing criterion 1 does not show that the service is fair to writers who are not like me, and essay 1 passed by only 0.0138.
+- **Criterion 3 was too narrow.** The five bad requests all came back 400, but my list left out a JSON list body and a very large text. The attack run found the list body crashing the route (RQ07), and the service has no length limit, so my criterion would have said MET while a real crash was still there. I measured the status codes only and did not check the error message text.
+- **Criteria 4 and 5 are fully measured** and held in every trial, with the log growing by exactly 20 entries per trial in criterion 4 and not at all in criterion 5.
+
+The original criteria in `criteria.md` are unchanged.
 
 ---
 
