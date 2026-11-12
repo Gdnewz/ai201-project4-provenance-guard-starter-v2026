@@ -177,23 +177,88 @@ I count each `creator_id` as one caller, falling back to the network address whe
 
 ## Attack Run — Before
 
-<!-- Every attack with its outcome and a held-or-broke mark.
-     `run_attacks.py --label before` produces the table. -->
+Run: `python run_attacks.py --set attack_set --label before`, written to `results/attack_run_2026-11-12_0912_before.md`. 56 attacks, nothing fixed before this run.
 
+| ID | Family | What it was going for | Status | Guess | Held or broke |
+|---|---|---|---|---|---|
+| EV01 | evasion | typos raise word variety (signal two) | 200 | human | BROKE |
+| EV02 | evasion | broken-up sentences raise length spread | 200 | unsure | BROKE |
+| EV03 | evasion | a pasted quotation changes the shape | 200 | unsure | BROKE |
+| EV04 | evasion | unusual words raise perplexity (signal one) | 200 | unsure | BROKE |
+| EV05 | evasion | heavy human editing pass (both signals) | 200 | human | BROKE |
+| EV06 | evasion | one very long and one very short sentence | 200 | unsure | BROKE |
+| EV07 | evasion | padding with punctuation | 200 | unsure | BROKE |
+| EV08 | evasion | text below the token window | 200 | human | BROKE |
+| EV09 | evasion | human opening paragraph bolted on | 200 | unsure | BROKE |
+| EV10 | evasion | repeated stanza structure | 200 | ai | HELD |
+| FP01 | false_positive | plain, clear human writing | 200 | unsure | HELD (not accused) |
+| FP02 | false_positive | human writing in a formal register | 200 | ai | BROKE |
+| FP03 | false_positive | non-native English speaker writing carefully | 200 | ai | BROKE |
+| FP04 | false_positive | student essay written to a rubric | 200 | ai | BROKE |
+| FP05 | false_positive | technical documentation by a person | 200 | ai | BROKE |
+| FP06 | false_positive | a person imitating a formal template | 200 | ai | BROKE |
+| FP07 | false_positive | human writing that repeats a phrase | 200 | ai | BROKE |
+| FP08 | false_positive | very short genuine human submission | 200 | unsure | HELD (not accused) |
+| PI01 | prompt_injection | instruction to ignore the check | 200 | unsure | HELD |
+| PI02 | prompt_injection | instruction disguised as a system message | 200 | human | BROKE |
+| PI03 | prompt_injection | instruction in the writer's voice | 200 | unsure | HELD |
+| PI04 | prompt_injection | hostile markup in the label text | 200 | unsure | HELD |
+| PI05 | prompt_injection | injection into the audit log | 200 | unsure | HELD (log entry intact) |
+| PI06 | prompt_injection | instruction plus real human text | 200 | unsure | HELD |
+| MF01 | malformed | text is only whitespace | 400 | none | HELD |
+| MF02 | malformed | text is a single character | 400 | none | HELD |
+| MF03 | malformed | text is control characters | 200 | human | BROKE |
+| MF04 | malformed | text is only punctuation | 200 | human | BROKE |
+| MF05 | malformed | text is a very long single word | 200 | ai | BROKE |
+| MF06 | malformed | text is emoji only | 200 | ai | BROKE |
+| MF07 | malformed | text is right-to-left script (Arabic) | 200 | ai | BROKE |
+| MF08 | malformed | text is 60,000 characters | 200 | ai | BROKE |
+| RQ01 | malformed | no text field at all | 400 | none | HELD |
+| RQ02 | malformed | no creator_id (caller recorded as `unknown`) | 200 | unsure | HELD |
+| RQ03 | malformed | (check input) | 400 | none | HELD |
+| RQ04 | malformed | (check input) | 400 | none | HELD |
+| RQ05 | malformed | (check input) | 400 | none | HELD |
+| RQ06 | malformed | creator_id is an object | 200 | human | BROKE |
+| RQ07 | malformed | JSON body that is a list, not an object | 500 | none | BROKE |
+| RQ08 | malformed | body is unparseable JSON (re-run alone) | 400 | none | HELD (misleading message) |
+| RQ09 | malformed | body is empty (re-run alone) | 400 | none | HELD |
+| RQ10 | malformed | body is form-encoded, not JSON (re-run alone) | 400 | none | HELD (misleading message) |
+| RQ11 | malformed | JSON claiming to be plain text (re-run alone) | 400 | none | HELD (misleading message) |
+| RQ12 | malformed | deeply nested JSON, text is an object | 400 | none | HELD (misleading reason) |
+| FL01_01 | flood_same_creator | one creator_id sending 12 in a row | 200 | human | HELD |
+| FL01_02 | flood_same_creator | one creator_id sending 12 in a row | 200 | human | HELD |
+| FL01_03 | flood_same_creator | one creator_id sending 12 in a row | 200 | human | HELD |
+| FL01_04 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
+| FL01_05 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
+| FL01_06 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
+| FL01_07 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
+| FL01_08 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
+| FL01_09 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
+| FL01_10 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
+| FL01_11 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
+| FL01_12 | flood_same_creator | one creator_id sending 12 in a row | 429 | none | HELD |
 
+RQ08 to RQ11 first came back 429 (the limiter answered before the request reached my route, because they have no usable `creator_id` and count against my network address), so I re-ran them alone, 25 seconds apart, with `rerun_rq.py`. `CHECK` means the mark depends on an input I have not read yet.
 
 **Ten audit log entries from the run**
 
-<!-- Choose entries that show the interesting failures, not the ten easiest. -->
-
 ```json
-
+{"timestamp": "2026-11-12T14:12:40+00:00", "content_id": "6939d252-9c89-4705-b47c-d2ae7cd66917", "creator_id": "attacker_EV01", "guess": "human", "model_score": 0.1635, "style_score": 0.4594, "combined_score": 0.25227, "label": "We think this was probably written by a person.", "status": "decided", "ai_threshold": 0.65, "human_threshold": 0.35, "weight_model": 0.7, "weight_style": 0.3}
+{"timestamp": "2026-11-12T14:12:41+00:00", "content_id": "baad685f-27cd-46da-b1f4-764b3e5d8a10", "creator_id": "attacker_EV05", "guess": "human", "model_score": 0.3212, "style_score": 0.1988, "combined_score": 0.28447999999999996, "label": "We think this was probably written by a person.", "status": "decided", "ai_threshold": 0.65, "human_threshold": 0.35, "weight_model": 0.7, "weight_style": 0.3}
+{"timestamp": "2026-11-12T14:12:41+00:00", "content_id": "4bf10640-fc8c-46aa-89b8-18e085359955", "creator_id": "attacker_EV08", "guess": "human", "model_score": 0.2452, "style_score": 0.532, "combined_score": 0.33124, "label": "We think this was probably written by a person.", "status": "decided", "ai_threshold": 0.65, "human_threshold": 0.35, "weight_model": 0.7, "weight_style": 0.3}
+{"timestamp": "2026-11-12T14:12:42+00:00", "content_id": "74b1d59f-a143-4b3f-bd55-cfbd6f521811", "creator_id": "attacker_FP02", "guess": "ai", "model_score": 0.7387, "style_score": 0.6706, "combined_score": 0.71827, "label": "We think this may have been written with AI. We can be wrong, so if you wrote it yourself, you can appeal and a person will take a look.", "status": "decided", "ai_threshold": 0.65, "human_threshold": 0.35, "weight_model": 0.7, "weight_style": 0.3}
+{"timestamp": "2026-11-12T14:12:42+00:00", "content_id": "df572eb4-56b3-4eca-8ec7-73e932494960", "creator_id": "attacker_FP03", "guess": "ai", "model_score": 0.8051, "style_score": 0.6516, "combined_score": 0.75905, "label": "We think this may have been written with AI. We can be wrong, so if you wrote it yourself, you can appeal and a person will take a look.", "status": "decided", "ai_threshold": 0.65, "human_threshold": 0.35, "weight_model": 0.7, "weight_style": 0.3}
+{"timestamp": "2026-11-12T14:12:43+00:00", "content_id": "61c7cfa3-b334-44cc-b686-529a8b31f561", "creator_id": "attacker_PI02", "guess": "human", "model_score": 0.2044, "style_score": 0.2328, "combined_score": 0.21292, "label": "We think this was probably written by a person.", "status": "decided", "ai_threshold": 0.65, "human_threshold": 0.35, "weight_model": 0.7, "weight_style": 0.3}
+{"timestamp": "2026-11-12T14:12:43+00:00", "content_id": "aa103748-d28a-449b-9384-d31a38ef11aa", "creator_id": "attacker_PI05", "guess": "unsure", "model_score": 0.6401, "style_score": 0.1089, "combined_score": 0.48073999999999995, "label": "We can't tell whether this was written by a person or by AI. This isn't a judgment against you, and you can ask for a review if you'd like one.", "status": "decided", "ai_threshold": 0.65, "human_threshold": 0.35, "weight_model": 0.7, "weight_style": 0.3}
+{"timestamp": "2026-11-12T14:12:44+00:00", "content_id": "2419dfc9-67c0-4243-9e39-770f4a5f5629", "creator_id": "attacker_MF05", "guess": "ai", "model_score": 0.9976, "style_score": 0.6667, "combined_score": 0.89833, "label": "We think this may have been written with AI. We can be wrong, so if you wrote it yourself, you can appeal and a person will take a look.", "status": "decided", "ai_threshold": 0.65, "human_threshold": 0.35, "weight_model": 0.7, "weight_style": 0.3}
+{"timestamp": "2026-11-12T14:12:46+00:00", "creator_id": "attacker_flood", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "3 per 1 minute"}
+{"timestamp": "2026-11-12T14:12:46+00:00", "creator_id": "attacker_flood", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "3 per 1 minute"}
 ```
 
 **The single worst outcome** — the one I'd least want to explain to a writer
 whose work got caught by it:
 
-
+FP03, a non-native English speaker writing carefully about their first month in a new country. My service told them "We think this may have been written with AI" (combined score 0.759, model 0.8051, style 0.6516). It is genuine human writing, flagged because it is plain and uses common words, which is exactly how a careful second-language writer writes. Of the eight false-positive inputs, six were labelled `ai` and two `unsure`; none came back `human`.
 
 ---
 
@@ -218,21 +283,37 @@ that produced it:
 
 **Diagnoses**
 
-<!-- For each miss AND each broken attack: the stage and the mechanism.
+Four problems explain the broken attacks. Each group below names the stage and the mechanism, with numbers from the audit log.
 
-     Your service has five stages: the route, signal one, signal two, the
-     combining rule, and the label mapping.
+### 1. Genuine human writing labelled `ai` (FP02 to FP07)
 
-     Not a diagnosis:  "The evasion attacks got through."
-     A diagnosis:      "Four evasion inputs got through. All four had typos
-                        added to AI-generated text. My second signal measures
-                        word variety, and typos raise word variety — so it read
-                        them as more human. My combining rule weights that
-                        signal at 0.6, so it dragged the whole score down."
+**FP03** (a non-native English speaker writing carefully), labelled `ai` at 0.759. The stage at fault is signal one, the model signal (`detector.py::model_signal`). gpt2 finds plain, careful writing with common words easy to predict, so it scored 0.8051. My combining rule gives the model signal 0.7 of the weight, so it contributes 0.5636 by itself and leaves only about 0.086 for the style signal before the score crosses the 0.65 threshold. The style signal (0.6516) leaned AI too, so nothing pulled the score back. The model signal would only have had to drop by about 0.16 to change the outcome, and the style signal would have had to drop by about 0.36. Plain writing is the model signal's blind spot, which I named in Signals and Scoring under "Signal one", and FP03 is that blind spot in the attack set.
 
-     Look for a pattern. Five failures on one signal is one problem, not five. -->
+**FP02, FP04, FP05, FP06, FP07** have the same cause as FP03: signal one, the model signal. Formal, rubric-style, technical and repetitive human writing uses predictable words in a predictable order, so gpt2 scored them 0.7387, 0.8329, 0.8005, 0.8814 and 0.8816. The style signal agreed (0.497 to 0.7491) because this writing also has even sentences and a narrow vocabulary, so the combined scores were 0.718 to 0.789, all above 0.65. The two signals did not disagree, so my combining rule had nothing to resolve. Even a style score of 0.0 would only have brought these down to between 0.517 and 0.617, which is `unsure`, not `human`, so the model signal carries these accusations. FP01 (0.6007) and FP08 (0.3638) landed in `unsure`, and FP01 was 0.05 from an accusation.
 
+### 2. AI text labelled `human` (EV01, EV05, EV08, PI02)
 
+**EV01, EV05, EV08 and PI02** all got through at the same stage: signal one, the model signal. Each one changed the text so that gpt2 found it harder to predict: EV01 has misspelled words it rarely sees, EV05 has an informal style with dashes and fragments, EV08 has only two short sentences, and PI02 has an odd "SYSTEM:" line at the start. The model score fell to 0.1635, 0.3212, 0.2452 and 0.2044, which read as human. My combining rule gives the model signal 0.7 of the weight, so each low score pulled the combined score down hard, to 0.25227, 0.28448, 0.33124 and 0.21292, all under the 0.35 threshold, so all four were labelled `human`. The style signal (0.4594, 0.1988, 0.532 and 0.2328) could not pull it back: the highest was EV08 at 0.532, and at a weight of 0.3 that adds only about 0.16 to the combined score. In PI02 the same AI paragraph scored 0.754 (`unsure`) without the instruction line and 0.2044 (`human`) with it.
+
+### 3. AI text labelled `unsure` (EV02, EV03, EV04, EV06, EV07, EV09)
+
+**EV02, EV03, EV04, EV06, EV07 and EV09** were not labelled `human`, but none reached `ai`. The model signal still leaned AI (0.5727 to 0.7042), but the style signal read all six as human (0.2399 to 0.4223), so the combined scores sat in the middle of the `unsure` band (0.488 to 0.581), below 0.65. Each attack reshapes what the style signal measures: broken-up sentences and one very long sentence change the sentence-length spread (EV02, EV06), a pasted quotation or a human paragraph adds variety (EV03, EV09), and extra semicolons raise punctuation density (EV07). EV04 changes words and so targets the model signal, and its model score was 0.6114. These attacks did not move the text across the line. The same AI paragraph with no attack scored 0.754 model and 0.3333 style, 0.6278 combined, `unsure`, in my PI02 baseline, a shortened version of it. So the style signal already read this AI-written text as human-leaning, and with a 0.7 weight on a model score of 0.754 the average still fell short of 0.65. The attacks pushed it further down.
+
+### 4. Input the route mishandled (MF03, MF04, RQ06, RQ07, and the error messages)
+
+**MF03** (text made of control characters) was scored as if it were writing: model 0.0, style 0.6667, combined 0.20001, labelled `human`. The stage at fault is the route. Its input check rejects empty or whitespace-only text and text too short to score, but control characters count as text, so they pass both checks and reach the model.
+
+**MF04** (text made only of punctuation, "!!! ??? ...") also passed both checks and was scored: model 0.0112, style 1.0, combined 0.30784, labelled `human`. Same stage and same cause as MF03: the route only refuses empty or too-short text and never checks that the text contains words.
+
+**RQ06** (`creator_id` sent as an object, `{"id": "x"}`, with real text) returned 200 and was scored `human`. The stage at fault is the route (`app.py`, line 206): `creator_id = payload.get("creator_id") or "unknown"` accepts any value that is not empty, not only a string, so an object is passed on to `audit.log_decision` and written into the caller field of the audit log.
+
+**RQ07** (a broken input that crashed the service). The stage at fault is the route (`app.py`, line 205, in `submit`). The service returned a 500 with `AttributeError: 'list' object has no attribute 'get'`. The request body was valid JSON, but a list and not an object. `.get` only exists on a dictionary-like object, so `submit` fell over before it checked anything. My rate limiter and 429 handler already check that the payload is a dictionary, but `/submit` didn't. This is still unfixed in the "before" run.
+
+**RQ08, RQ10, RQ11 and RQ12** were all rejected with a 400, so the route held, but with the wrong explanation. They get the reason `empty_text` and the message "did you mean to send an empty message?" even though the body was cut-off JSON (RQ08), form data (RQ10), valid JSON sent as plain text (RQ11), or a text that was an object (RQ12). The stage is the route: `get_json(silent=True)` returns nothing for all of these, so my code cannot tell "empty" from "unreadable" or "wrong type", and a writer who sent valid JSON is told they sent nothing.
+
+### 5. Input that is not ordinary English writing, labelled `ai` (MF05 to MF08)
+
+**MF05** (one very long word, "aaaa..."), **MF06** (emoji only), **MF07** (Arabic) and **MF08** (the same human paragraph repeated to 60,000 characters) all returned 200 and were labelled `ai`, with combined scores from 0.864 to 0.998 (model 0.9064 to 0.9976, style 0.5755 to 1.0). The stage at fault is signal one, together with the route letting them in. gpt2 finds repetition easy to predict: the repeated letter, the repeating emoji pattern and the repeated paragraph. The paragraph in MF08 is the one from FP01, which scored 0.6007 (`unsure`) once and 0.864 (`ai`) repeated. I think MF07 has the same cause, because gpt2 breaks Arabic into many small pieces that are easy to guess, but I did not test that. The route has no check on what the text contains and no maximum length, so it accepted a 60,000 character request and scored it. A writer in Arabic would be told their work "may have been written with AI".
 
 ---
 
