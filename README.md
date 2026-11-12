@@ -36,13 +36,13 @@
 
 ## What This Does
 
-1. **A request arrives** at `POST /submit` with `text` and `creator_id`.
-2. **Input check.** If `text` is missing, empty or only spaces, the service rejects it with a 400 and the message "did you mean to send an empty message?". The rejection is written to the audit log.
+1. **A request arrives** at `POST /submit` with `text` and `creator_id`. If the caller has gone over the rate limit, the service answers 429 before anything else runs, and the rejection is written to the audit log.
+2. **Input check.** If `text` is missing, empty or only spaces, the service rejects it with a 400 and the message "did you mean to send an empty message?". The rejection is written to the audit log with the reason and the `creator_id`. A rejected request never gets a `content_id`, so its entry shows only the reason and the caller.
 3. **Signal one (the model signal).** `detector.model_signal(text)` runs the text through a local gpt2 model and returns a number from 0 to 1 (higher = more likely AI). Text too short to score is rejected with a 400 and logged.
 4. **Signal two (the style signal).** `stylometry.style_signal(text)` measures the shape of the text and returns a number from 0 to 1 (higher = more likely AI).
 5. **Combine.** `scoring.combine_signals(...)` merges the two into one score with a weighted average (0.7 model, 0.3 style).
 6. **Label.** `scoring.score_to_label(...)` turns the score into a guess (`ai`, `unsure` or `human`) and the sentence the writer reads.
-7. **Log and answer.** `audit.log_decision(...)` records the `content_id`, both signal scores, the combined score, the label and the status `decided`. The writer gets `content_id`, `guess`, `confidence`, `label`, `model_score` and `style_score` as JSON.
+7. **Log and answer.** `audit.log_decision(...)` records the `content_id`, `creator_id`, both signal scores, the combined score, the guess, the label, the status `decided`, and the settings that produced the decision: `ai_threshold`, `human_threshold`, `weight_model` and `weight_style`. Recording them means a decision can be rebuilt from its log line alone, even after the settings change. The writer gets `content_id`, `guess`, `confidence`, `label`, `model_score` and `style_score` as JSON.
 
 If the writer disagrees, they send `POST /appeal` with the `content_id` and their `reasoning`. The service checks the id exists (404 if not), records the appeal in the log, and the item becomes `under_review`. Nothing is re-checked automatically. A person looks at it.
 
@@ -157,24 +157,20 @@ PASTE YOUR REAL LOG OUTPUT HERE
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 3 per minute, 40 per day
 
 **Why those numbers and not others:**
-<!-- Think about two people: a real writer submitting their own work a few
-     times an hour, and a script sending a thousand variations to map your
-     thresholds. Your numbers have to be liveable for the first and hostile to
-     the second. -->
 
-**What a caller counts as:** <!-- per address, or per creator_id? They fail
-differently — one script can look like a thousand callers, and one household
-can look like one. -->
+I chose 3 submissions per minute and 40 per day. A real writer checks a piece, reads the result, and edits before sending the next one, so three a minute leaves room for normal use. The limit protects the scoring step from a script that sends text as fast as it can, which my flood test showed: 3 went through and 12 were blocked (`results/flood_2026-11-04_2123.md`). The cost is that a writer with several short pieces to check at once can be blocked for a minute, and a daily cap of 40 stops someone with a big batch. I accept that because a short wait costs a writer less than an open scoring endpoint costs the service. These numbers are my judgment, not measured, and I would change them if real users were blocked often.
+
+**What a caller counts as:**
+
+I count each `creator_id` as one caller, falling back to the network address when a request has none. This protects a shared network, like a school or household, from being blocked because one person on it sent too much, since each writer gets their own limit. The cost is that someone who wants to flood the service can send each request with a new `creator_id` and never reach the limit. I accept that for now because the limit still stops a simple script, and because `creator_id` is a stand-in for an account I don't check. A real deployment would tie it to a verified login or add a limit by network address as well.
 
 **The run of status codes when I pushed past it:**
 
-<!-- python run_attacks.py --flood 15 -->
-
 ```
-
+200 200 200 429 429 429 429 429 429 429 429 429 429 429 429
 ```
 
 ---

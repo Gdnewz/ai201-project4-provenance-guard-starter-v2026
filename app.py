@@ -152,7 +152,7 @@ def health():
 # ── YOU BUILD THIS ────────────────────────────────────────────────────────────
 
 @app.post("/submit")
-# @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
+@limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
 def submit():
     """
     Take a piece of text, decide about it, log the decision, answer.
@@ -225,9 +225,6 @@ def submit():
     combined_score = scoring.combine_signals(model_score, style_score)
 
     content_id = str(uuid.uuid4())
-    guess = "human"
-    label = "Unsure"
-
     guess, label = scoring.score_to_label(combined_score)
     
     audit.log_decision(
@@ -238,6 +235,10 @@ def submit():
         style_score=style_score,
         combined_score=combined_score,
         label=label,
+        ai_threshold=config.AI_THRESHOLD,
+        human_threshold=config.HUMAN_THRESHOLD,
+        weight_model=config.WEIGHT_MODEL_SIGNAL,
+        weight_style=config.WEIGHT_STYLE_SIGNAL,
     )
 
     return jsonify({
