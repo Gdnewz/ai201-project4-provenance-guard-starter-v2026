@@ -485,22 +485,80 @@ The original criteria in `criteria.md` are unchanged.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** one change, input validation, in `app.py`. A new function `check_submission` runs at the top of `submit`, before any signal runs. It refuses, with its own reason and a 400, a body that cannot be read (`unreadable_body`), a body that is not a JSON object (`invalid_body`), a `creator_id` that is not a string (`invalid_creator_id`), text that is not a string (`invalid_text`), text longer than 10,000 characters (`text_too_long`), and text with no letters in it (`no_words`). Empty or missing text still returns `empty_text`. I counted letters with `str.isalpha()`, which works for any language, so text in Arabic is not rejected. Nothing else in the file changed: the signals, the weights, the thresholds, `/appeal` and `/log` are the same.
 
-**Which diagnosis pointed at it:**
+**Which diagnosis pointed at it:** diagnosis group 4 (MF03, MF04, RQ06, RQ07 and the error messages) and the route half of group 5 (MF05 to MF08, where the route had no length limit and no check for words). RQ07 was the only crash in the run.
 
 ### Attack Run — After
 
-<!-- Same format. `run_attacks.py --label after` -->
+Run: `python run_attacks.py --set attack_set --label after`, written to `results/attack_run_2026-11-12_1216_after.md`, with `rerun_rq.py` for the RQ rows that the rate limiter blocks when they all come from one address. The eval run is `results/run_2026-11-12_1218_after.md`.
 
+| ID | Family | Before (status, guess, verdict) | After status | After guess | After verdict |
+|---|---|---|---|---|---|
+| EV01 | evasion | 200 human BROKE | 200 | human | BROKE |
+| EV02 | evasion | 200 unsure BROKE | 200 | unsure | BROKE |
+| EV03 | evasion | 200 unsure BROKE | 200 | unsure | BROKE |
+| EV04 | evasion | 200 unsure BROKE | 200 | unsure | BROKE |
+| EV05 | evasion | 200 human BROKE | 200 | human | BROKE |
+| EV06 | evasion | 200 unsure BROKE | 200 | unsure | BROKE |
+| EV07 | evasion | 200 unsure BROKE | 200 | unsure | BROKE |
+| EV08 | evasion | 200 human BROKE | 200 | human | BROKE |
+| EV09 | evasion | 200 unsure BROKE | 200 | unsure | BROKE |
+| EV10 | evasion | 200 ai HELD | 200 | ai | HELD |
+| FP01 | false_positive | 200 unsure HELD | 200 | unsure | HELD (not accused) |
+| FP02 | false_positive | 200 ai BROKE | 200 | ai | BROKE |
+| FP03 | false_positive | 200 ai BROKE | 200 | ai | BROKE |
+| FP04 | false_positive | 200 ai BROKE | 200 | ai | BROKE |
+| FP05 | false_positive | 200 ai BROKE | 200 | ai | BROKE |
+| FP06 | false_positive | 200 ai BROKE | 200 | ai | BROKE |
+| FP07 | false_positive | 200 ai BROKE | 200 | ai | BROKE |
+| FP08 | false_positive | 200 unsure HELD | 200 | unsure | HELD (not accused) |
+| PI01 | prompt_injection | 200 unsure HELD | 200 | unsure | HELD |
+| PI02 | prompt_injection | 200 human BROKE | 200 | human | BROKE |
+| PI03 | prompt_injection | 200 unsure HELD | 200 | unsure | HELD |
+| PI04 | prompt_injection | 200 unsure HELD | 200 | unsure | HELD |
+| PI05 | prompt_injection | 200 unsure HELD | 200 | unsure | HELD (log entry intact) |
+| PI06 | prompt_injection | 200 unsure HELD | 200 | unsure | HELD |
+| MF01 | malformed | 400 none HELD | 400 | none | HELD |
+| MF02 | malformed | 400 none HELD | 400 | none | HELD |
+| MF03 | malformed | 200 human BROKE | 200 | human | BROKE |
+| MF04 | malformed | 200 human BROKE | 400 | none | HELD (fixed) |
+| MF05 | malformed | 200 ai BROKE | 200 | ai | BROKE |
+| MF06 | malformed | 200 ai BROKE | 400 | none | HELD (fixed) |
+| MF07 | malformed | 200 ai BROKE | 200 | ai | BROKE |
+| MF08 | malformed | 200 ai BROKE | 400 | none | HELD (fixed) |
+| RQ01 | malformed | 400 none HELD | 400 | none | HELD |
+| RQ02 | malformed | 200 unsure HELD | 200 | unsure | HELD |
+| RQ03 | malformed | 400 none HELD | 400 | none | HELD |
+| RQ04 | malformed | 400 none HELD | 400 | none | HELD |
+| RQ05 | malformed | 400 none HELD | 400 | none | HELD |
+| RQ06 | malformed | 200 human BROKE | 400 | none | HELD (fixed) |
+| RQ07 | malformed | 500 none BROKE | 400 | none | HELD (fixed) |
+| RQ08 | malformed | 400 none HELD | 429 | none | not re-tested (rate limited) |
+| RQ09 | malformed | 400 none HELD | 429 | none | not re-tested (rate limited) |
+| RQ10 | malformed | 400 none HELD | 400 (rerun) | none | HELD (message now `unreadable_body`) |
+| RQ11 | malformed | 400 none HELD | 400 (rerun) | none | HELD (message now `unreadable_body`) |
+| RQ12 | malformed | 400 none HELD | 400 | none | HELD |
+| FL01_01 | flood_same_creator | 200 human HELD | 200 | human | HELD |
+| FL01_02 | flood_same_creator | 200 human HELD | 200 | human | HELD |
+| FL01_03 | flood_same_creator | 200 human HELD | 200 | human | HELD |
+| FL01_04 | flood_same_creator | 429 none HELD | 429 | none | HELD |
+| FL01_05 | flood_same_creator | 429 none HELD | 429 | none | HELD |
+| FL01_06 | flood_same_creator | 429 none HELD | 429 | none | HELD |
+| FL01_07 | flood_same_creator | 429 none HELD | 429 | none | HELD |
+| FL01_08 | flood_same_creator | 429 none HELD | 429 | none | HELD |
+| FL01_09 | flood_same_creator | 429 none HELD | 429 | none | HELD |
+| FL01_10 | flood_same_creator | 429 none HELD | 429 | none | HELD |
+| FL01_11 | flood_same_creator | 429 none HELD | 429 | none | HELD |
+| FL01_12 | flood_same_creator | 429 none HELD | 429 | none | HELD |
 
+**Did it help, and how do I know:** it helped on the input handling and did nothing for accuracy, which is what I expected from a change to the route.
 
-**Did it help, and how do I know:**
-
-<!-- Widening the unsure band usually fixes one problem and creates another.
-     Reporting that trade honestly is worth full credit. -->
-
-
+- **Broken attacks went from 24 to 19.** Five rows that were BROKE are now HELD: MF04 (punctuation only), MF06 (emoji only) and MF08 (60,000 characters) are refused with a 400 before the model sees them, RQ06 (an object as `creator_id`) is refused with `invalid_creator_id`, and RQ07 (a JSON list) returns a 400 instead of crashing the service with a 500.
+- **The misleading messages are fixed for the rows I re-tested.** RQ10 and RQ11 now return `unreadable_body` and no longer say the writer sent an empty message. RQ08 and RQ09 came back as 429 in both runs, because requests with no usable `creator_id` all count against one network address and the limit is 3 per minute, so they were not re-tested and I am not counting them either way.
+- **Still BROKE, and why the change could not touch them.** MF05 (one long word, about 4,000 characters) is under the 10,000 character limit and still scores 0.898 as `ai`. MF07 (Arabic) still scores 0.934 as `ai`, which is the price of not rejecting non-English text. MF03 (control characters) still gets through. I did not check what that input contains, but since it passes the `no_words` check it presumably holds at least one letter, so my check does not stop it. All six false accusations (FP02 to FP07), the nine evasions and PI02 are exactly as before, to the same four decimals, because they never reach the code I changed.
+- **The five criteria did not move.** Criterion 1 is still 1 of 10, criterion 2 is still 6 of 10, criterion 3 still returns 400 five times out of five, criteria 4 and 5 still pass, and the log still grows by 20 entries per trial in criterion 4 and by none in criterion 5. Every trial matches its before trial.
+- **The trade.** The change costs two things: a writer who sends more than 10,000 characters at once is now refused instead of scored, and a submission with no letters in it is refused. I did not find a case in my 56 attacks where a genuine writer was newly refused, but my set had no long genuine essay, so I did not test the limit against real use.
 
 ---
 

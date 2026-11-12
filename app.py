@@ -149,6 +149,70 @@ def health():
     })
 
 
+# ── Input validation — UNIT 8, MILESTONE 5 ───────────────────────────────────
+# One change: check the request BEFORE any signal runs. Each failure gets its
+# own reason, so an unreadable body is no longer reported as "empty_text".
+
+MAX_TEXT_CHARS = 10000   # about 1,500 words; anything longer is refused, not scored
+
+
+def check_submission(payload):
+    """
+    Returns (creator_id, text, None) when the request is usable, or
+    (creator_id, None, (reason, message)) when it is not.
+
+    creator_id is always a safe string here, so it can go straight into the
+    audit log even when the caller sent something odd.
+    """
+    if payload is None:
+        return "unknown", None, (
+            "unreadable_body",
+            "we couldn't read that request, please send JSON like "
+            '{"text": "...", "creator_id": "..."}',
+        )
+
+    if not isinstance(payload, dict):
+        return "unknown", None, (
+            "invalid_body",
+            "the request must be a JSON object with text and creator_id",
+        )
+
+    raw_creator = payload.get("creator_id")
+    if raw_creator is None or raw_creator == "":
+        creator_id = "unknown"
+    elif isinstance(raw_creator, str):
+        creator_id = raw_creator.strip() or "unknown"
+    else:
+        return "unknown", None, (
+            "invalid_creator_id",
+            "creator_id must be a string",
+        )
+
+    text = payload.get("text")
+    if text is None or (isinstance(text, str) and not text.strip()):
+        return creator_id, None, (
+            "empty_text",
+            "did you mean to send an empty message?",
+        )
+    if not isinstance(text, str):
+        return creator_id, None, (
+            "invalid_text",
+            "text must be a string",
+        )
+    if len(text) > MAX_TEXT_CHARS:
+        return creator_id, None, (
+            "text_too_long",
+            f"that text is too long to score, please send at most {MAX_TEXT_CHARS} characters",
+        )
+    if not any(ch.isalpha() for ch in text):
+        return creator_id, None, (
+            "no_words",
+            "that text has no words in it, please send some writing",
+        )
+
+    return creator_id, text, None
+
+
 # ── YOU BUILD THIS ────────────────────────────────────────────────────────────
 
 @app.post("/submit")
@@ -200,17 +264,13 @@ def submit():
     what should this do when `text` is missing, empty, or enormous? A crash on
     a malformed input is one of the most common real failures there is.
     """
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
 
-    text = payload.get("text")
-    creator_id = payload.get("creator_id") or "unknown"
-
-    if not isinstance(text, str) or not text.strip():
-        audit.log_rejection(creator_id=creator_id, reason="empty_text")
-        return jsonify({
-            "error": "empty_text",
-            "message": "did you mean to send an empty message?",
-        }), 400
+    creator_id, text, problem = check_submission(payload)
+    if problem:
+        reason, message = problem
+        audit.log_rejection(creator_id=creator_id, reason=reason)
+        return jsonify({"error": reason, "message": message}), 400
 
     try:
         model_score = detector.model_signal(text)
