@@ -138,8 +138,66 @@ def main():
 
         rows.append({"scenario": scenario, "trials": trials})
 
+    print("\nappeals and unknown ids  (criteria 4 and 5)")
+    rows += appeal_rows(requests, args)
     write_report(rows, args)
 
+def get_log(requests, url):
+    data = requests.get(f"{url}/log", timeout=30).json()
+    return data if isinstance(data, list) else data.get("entries", [])
+
+
+def appeal_rows(requests, args):
+    import scenarios
+    essays = scenarios.SCENARIOS[0]["texts"]          # your 10 essays
+    ok_trials, unknown_trials = [], []
+
+    for trial in range(1, args.trials + 1):
+        # criterion 4: submit, then appeal each content_id
+        results = []
+        for i, text in enumerate(essays, 1):
+            owner = f"eval_appeal_t{trial}_{i}"       # fresh id, so rate limits don't interfere
+            sub = requests.post(f"{args.url}/submit",
+                                json={"text": text, "creator_id": owner},
+                                timeout=args.timeout)
+            cid = (sub.json() if sub.content else {}).get("content_id")
+            row = {"submit_status": sub.status_code, "content_id": cid}
+            if cid:
+                ap = requests.post(f"{args.url}/appeal",
+                                    json={"content_id": cid,
+                                         "reasoning": "eval appeal"},
+                                   timeout=args.timeout)
+                row["appeal_status"] = ap.status_code
+                row["appeal_body"] = ap.json() if ap.content else {}
+            results.append(row)
+
+        log = get_log(requests, args.url)
+        for row in results:                            # does /log agree?
+            matches = [e for e in log if e.get("content_id") == row["content_id"]]
+            row["log_status"] = matches[-1].get("status") if matches else None
+        ok_trials.append(results)
+        print(f"  trial {trial}: appeals "
+              f"{[r.get('appeal_status') for r in results]}")
+
+        # criterion 5: unknown ids, and the log must not change
+        before = len(get_log(requests, args.url))
+        unknown = []
+        for n in range(1, 6):
+            ap = requests.post(f"{args.url}/appeal",
+                               json={"content_id": f"does-not-exist-{trial}-{n}",
+                                     "reasoning": "eval appeal"},
+                               timeout=args.timeout)
+            unknown.append({"status": ap.status_code,
+                            "body": ap.json() if ap.content else {}})
+        after = len(get_log(requests, args.url))
+        unknown.append({"log_entries_before": before, "log_entries_after": after})
+        unknown_trials.append(unknown)
+        print(f"  trial {trial}: unknown ids {[u.get('status') for u in unknown[:5]]}")
+
+    return [
+        {"scenario": {"name": "appeals", "criterion": 4}, "trials": ok_trials},
+        {"scenario": {"name": "unknown ids", "criterion": 5}, "trials": unknown_trials},
+    ]
 
 def write_report(rows, args):
     config.RESULTS_DIR.mkdir(exist_ok=True)

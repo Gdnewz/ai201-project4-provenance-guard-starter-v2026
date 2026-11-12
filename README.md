@@ -268,22 +268,159 @@ FP03, a non-native English speaker writing carefully about their first month in 
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |
+| 1. My own writing (10 essays) | At most 1 of 10 labelled `ai` | 1 of 10 (essay 1, 0.6638) | 1 of 10 (essay 1, 0.6638) | 1 of 10 (essay 1, 0.6638) | **Pass, at the limit** |
+| 2. AI paragraphs (10 paragraphs) | At least 8 of 10 labelled `ai` | 6 of 10 (4 `unsure`) | 6 of 10 (4 `unsure`) | 6 of 10 (4 `unsure`) | **Miss** |
+| 3. Bad requests (5) | All 5 return 400 with the service message, none 500 | 5 of 5 returned 400 | 5 of 5 returned 400 | 5 of 5 returned 400 | **Pass** (status codes) |
+| 4. Appeals (10) | All 10 return `under_review` and `/log` agrees | 10 of 10, log agrees | 10 of 10, log agrees | 10 of 10, log agrees | **Pass** |
+| 5. Unknown ids (5) | All 5 return 404 and the log does not change | 5 of 5, log 237 to 237 | 5 of 5, log 257 to 257 | 5 of 5, log 277 to 277 | **Pass** |
 
-**Real output from one trial**, pasted as text, naming the file and function
-that produced it:
+Run file: `results/run_2026-11-12_1201_before.md`, produced by `run_eval.py --label before`. Scenarios are in `scenarios.py`. `run_eval.py` only sent texts and bad bodies on its own, so I added `appeal_rows` to it, which submits the 10 essays, appeals each returned `content_id`, and then sends 5 appeals for ids that do not exist. Criteria 4 and 5 are tested by that function.
+
+**Notes on the runs.** All three trials came back identical to four decimal places, so the model signal is deterministic on my machine and the three trials are three copies of one result, not three independent samples. Criterion 1 passes only just: essay 1 scored 0.6638 against the 0.65 threshold, and four other essays (2, 5, 7 and 8) landed in `unsure`. Criterion 3 is judged on status codes only, because `run_eval.py` records the status and not the error message text. Criterion 2 is a miss and stays a miss. I did not change the target.
+
+**Real output from one trial** (trial 1 of `results/run_2026-11-12_1201_before.md`), pasted as text, naming the file and function that produced it:
+
+**Criterion 1, my own writing.** Produced by `app.py::submit`, scored by `detector.py::model_signal`, `stylometry.py::style_signal` and `scoring.py::combine_signals`, labelled by `scoring.py::score_to_label`. Essay 1 (labelled `ai`) and essay 3 (labelled `human`):
 
 ```json
+[
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.6638,
+    "model_score": 0.6774,
+    "style_score": 0.632,
+    "label": "We think this may have been written with AI. We can be wrong, so if you wrote it yourself, you can appeal and a person will take a look.",
+    "sent": "Working at a job can be draining but we all do it for the same reason,"
+  },
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.31,
+    "model_score": 0.2564,
+    "style_score": 0.4352,
+    "label": "We think this was probably written by a person.",
+    "sent": "Having a relationship, especially long distant relationships can be a "
+  }
+]
+```
 
+**Criterion 2, AI paragraphs.** Same producers. The first paragraph (time management) is a miss at 0.579, the second (regular exercise) is labelled `ai`:
+
+```json
+[
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.579,
+    "model_score": 0.7135,
+    "style_score": 0.2653,
+    "label": "We can't tell whether this was written by a person or by AI. This isn't a judgment against you, and you can ask for a review if you'd like one.",
+    "sent": "Time management is an essential skill that can significantly improve b"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.6916,
+    "model_score": 0.8745,
+    "style_score": 0.2648,
+    "label": "We think this may have been written with AI. We can be wrong, so if you wrote it yourself, you can appeal and a person will take a look.",
+    "sent": "Regular exercise offers numerous benefits for both physical and mental"
+  }
+]
+```
+
+**Criterion 3, bad requests.** Produced by `app.py::submit`, which returns the 400 before any signal runs. The five bodies sent were empty text, no `text` field, `text: null`, `text: 12345` and whitespace only:
+
+```json
+[
+  {
+    "status": 400,
+    "guess": null,
+    "confidence": null,
+    "model_score": null,
+    "style_score": null,
+    "label": null,
+    "sent": "(empty text)"
+  },
+  {
+    "status": 400,
+    "guess": null,
+    "confidence": null,
+    "model_score": null,
+    "style_score": null,
+    "label": null,
+    "sent": "{\"creator_id\": \"eval_bad_missing\"}"
+  },
+  {
+    "status": 400,
+    "guess": null,
+    "confidence": null,
+    "model_score": null,
+    "style_score": null,
+    "label": null,
+    "sent": "{\"text\": null, \"creator_id\": \"eval_bad_null\"}"
+  },
+  {
+    "status": 400,
+    "guess": null,
+    "confidence": null,
+    "model_score": null,
+    "style_score": null,
+    "label": null,
+    "sent": "{\"text\": 12345, \"creator_id\": \"eval_bad_number\"}"
+  },
+  {
+    "status": 400,
+    "guess": null,
+    "confidence": null,
+    "model_score": null,
+    "style_score": null,
+    "label": null,
+    "sent": "   "
+  }
+]
+```
+
+**Criterion 4, appeals.** Produced by `app.py::appeal`, which calls `audit.py::log_appeal`. The `log_status` is read back from `GET /log` (`app.py::get_log`):
+
+```json
+[
+  {
+    "submit_status": 200,
+    "content_id": "39080d2b-3610-4e93-94ef-0828dc81b388",
+    "appeal_status": 200,
+    "appeal_body": {
+      "content_id": "39080d2b-3610-4e93-94ef-0828dc81b388",
+      "message": "Thanks. Your appeal has been recorded and a person will review it.",
+      "status": "under_review"
+    },
+    "log_status": "under_review"
+  }
+]
+```
+
+**Criterion 5, unknown ids.** Produced by `app.py::appeal`, which checks `audit.entries_for` before logging anything. The last object is the log entry count before and after the five appeals:
+
+```json
+[
+  {
+    "status": 404,
+    "body": {
+      "error": "not_found",
+      "message": "we couldn't find that content_id, please check it and try again"
+    }
+  },
+  {
+    "log_entries_before": 237,
+    "log_entries_after": 237
+  }
+]
 ```
 
 **Diagnoses**
 
-Four problems explain the broken attacks. Each group below names the stage and the mechanism, with numbers from the audit log.
+Five problems explain the broken attacks. Each group below names the stage and the mechanism, with numbers from the audit log.
 
 ### 1. Genuine human writing labelled `ai` (FP02 to FP07)
 
@@ -314,6 +451,21 @@ Four problems explain the broken attacks. Each group below names the stage and t
 ### 5. Input that is not ordinary English writing, labelled `ai` (MF05 to MF08)
 
 **MF05** (one very long word, "aaaa..."), **MF06** (emoji only), **MF07** (Arabic) and **MF08** (the same human paragraph repeated to 60,000 characters) all returned 200 and were labelled `ai`, with combined scores from 0.864 to 0.998 (model 0.9064 to 0.9976, style 0.5755 to 1.0). The stage at fault is signal one, together with the route letting them in. gpt2 finds repetition easy to predict: the repeated letter, the repeating emoji pattern and the repeated paragraph. The paragraph in MF08 is the one from FP01, which scored 0.6007 (`unsure`) once and 0.864 (`ai`) repeated. I think MF07 has the same cause, because gpt2 breaks Arabic into many small pieces that are easy to guess, but I did not test that. The route has no check on what the text contains and no maximum length, so it accepted a 60,000 character request and scored it. A writer in Arabic would be told their work "may have been written with AI".
+
+### 6. Criterion 2: AI paragraphs labelled `unsure` (my own run)
+
+Four of my ten AI paragraphs stayed under the 0.65 line in every trial:
+
+| Paragraph | model_score | style_score | combined | label |
+|---|---|---|---|---|
+| Time management | 0.7135 | 0.2653 | 0.5790 | unsure |
+| Effective communication | 0.7662 | 0.3533 | 0.6423 | unsure |
+| Travel | 0.7849 | 0.1598 | 0.5974 | unsure |
+| Artificial intelligence | 0.6838 | 0.2312 | 0.5480 | unsure |
+
+All ten paragraphs had a model score of 0.6838 or higher, and the highest style score across the ten was 0.4832.
+
+**My diagnosis:** The miss happens at the combining step (`scoring.py::combine_signals`), and the style signal (`stylometry.py::style_signal`) is what pulls these four paragraphs under the line. The model signal got every AI paragraph right, with all ten at 0.6838 or higher, but the style signal scored all ten at 0.4832 or lower, so it read clean chatbot writing as human leaning. With a weight of 0.3, a style score of 0.1598 on the travel paragraph takes about 0.19 off the combined score compared with a style score equal to its model score of 0.7849, and that drops it from about 0.78 to 0.5974, which is `unsure`. I did not test which of the three style measures (sentence length spread, vocabulary variety, punctuation density) causes the low scores. Using the model signal alone would have labelled all ten paragraphs `ai`, but it would also make the false positives in group 1 worse, because the model signal is the one that scored plain human writing like FP03 as AI, so the fix is not as simple as removing the style signal.
 
 ---
 
