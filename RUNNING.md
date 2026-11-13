@@ -317,12 +317,15 @@ units.
 
 It serves http://127.0.0.1:5000. Rate limiting is on (3 per minute and 40 per day per creator_id), set in config.py. Check it is up with GET /health.
 
+`python app.py` starts Flask's development server, bound to 127.0.0.1 only. `gunicorn app:app` is the production-style alternative; I did not use or test it.
+
 **Environment**
 
-- Python 3.11.9 (the starter supports 3.11 to 3.13, not 3.14).
+- Python 3.11.9.
 - Windows 11 with PowerShell. Use curl.exe, and --% before the arguments when a JSON body has quotes.
 - Dependencies: requirements-pinned.txt holds the seven direct dependencies at the exact versions this was run with. Their own dependencies are resolved by pip.
-- Model: gpt2 from Hugging Face, about 550 MB on disk. It is downloaded once by `python detector.py`, and loaded into memory on the first request that scores text. That first request took 10,063.77 ms (cold). Later requests took about 55 ms (warm).
+- Model: gpt2 from Hugging Face, 551.0 MB on disk (measured with `huggingface-cli scan-cache`). It is downloaded once by `python detector.py` and loaded into memory on the first request that scores text. The first request that scores text (cold) took 7.1 to 11.6 seconds across four measurements. Later requests (warm) averaged 79.31 ms server side over ten runs, range 64.22 to 95.93 ms (`results/cost_run_20261113173324.md`).
+- Tested from a clean clone on 2026-11-13: a fresh virtual environment, `pip install -r requirements-pinned.txt`, `python test.py` (9 of 9 passed), `python detector.py` (model_signal 0.8864 on the sample) and `python app.py`, with `/health` answering. The first attempt failed because requirements-pinned.txt had not been pushed. Only the seven direct dependencies are pinned, so a few indirect ones (click, filelock, fsspec, regex) installed at slightly newer versions than the ones the timings were measured with.
 
 **Setup from a clean clone**
 
@@ -331,11 +334,16 @@ It serves http://127.0.0.1:5000. Rate limiting is on (3 per minute and 40 per da
     python -m venv .venv
     .venv\Scripts\Activate.ps1
     pip install -r requirements-pinned.txt
+    python test.py
     python detector.py
     python app.py
+
+`python test.py` fails its virtual environment check if the venv is not active.
 
 **Read what it did**
 
     python summarize_log.py --since 2026-11-13T15:45
+
+Use a UTC time just before you start the service. The log is in UTC, 5 hours ahead of EST. Entries from before that time are left out.
 
 Every request that reaches /submit is written to logs/audit.jsonl with a duration_ms and a model_warm field. The log uses UTC.
