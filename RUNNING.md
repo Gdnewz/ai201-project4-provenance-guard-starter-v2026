@@ -306,3 +306,36 @@ is evidence, and the entries you paste into your README are what unit 8 grades.
 
 **Do not delete and recreate this repository.** You submit the same URL both
 units.
+
+## Capstone: running the service
+
+**Path B: local, with logs.** The service loads gpt2 on the machine it runs on, so it is run locally and not hosted (see the memory arithmetic above).
+
+**Start command**, from the project folder with the virtual environment active:
+
+    python app.py
+
+It serves http://127.0.0.1:5000. Rate limiting is on (3 per minute and 40 per day per creator_id), set in config.py. Check it is up with GET /health.
+
+**Environment**
+
+- Python 3.11.9 (the starter supports 3.11 to 3.13, not 3.14).
+- Windows 11 with PowerShell. Use curl.exe, and --% before the arguments when a JSON body has quotes.
+- Dependencies: requirements-pinned.txt holds the seven direct dependencies at the exact versions this was run with. Their own dependencies are resolved by pip.
+- Model: gpt2 from Hugging Face, about 550 MB on disk. It is downloaded once by `python detector.py`, and loaded into memory on the first request that scores text. That first request took 10,063.77 ms (cold). Later requests took about 55 ms (warm).
+
+**Setup from a clean clone**
+
+    git clone https://github.com/Gdnewz/ai201-project4-provenance-guard-starter-v2026.git
+    cd ai201-project4-provenance-guard-starter-v2026
+    python -m venv .venv
+    .venv\Scripts\Activate.ps1
+    pip install -r requirements-pinned.txt
+    python detector.py
+    python app.py
+
+**Read what it did**
+
+    python summarize_log.py --since 2026-11-13T15:45
+
+Every request that reaches /submit is written to logs/audit.jsonl with a duration_ms and a model_warm field. The log uses UTC.
