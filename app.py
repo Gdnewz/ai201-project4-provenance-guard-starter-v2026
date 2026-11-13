@@ -270,18 +270,19 @@ def submit():
     a malformed input is one of the most common real failures there is.
     """
     start = time.perf_counter()
+    model_warm = detector._model is not None 
     payload = request.get_json(silent=True)
 
     creator_id, text, problem = check_submission(payload)
     if problem:
         reason, message = problem
-        audit.log_rejection(creator_id=creator_id, reason=reason, duration_ms=elapsed_ms(start))
+        audit.log_rejection(creator_id=creator_id, reason=reason, duration_ms=elapsed_ms(start), model_warm=model_warm)
         return jsonify({"error": reason, "message": message}), 400
 
     try:
         model_score = detector.model_signal(text)
     except ValueError:
-        audit.log_rejection(creator_id=creator_id, reason="text_too_short", duration_ms=elapsed_ms(start))
+        audit.log_rejection(creator_id=creator_id, reason="text_too_short", duration_ms=elapsed_ms(start), model_warm=model_warm)
         return jsonify({
             "error": "text_too_short",
             "message": "that text is too short to score, please send a few sentences",
@@ -306,6 +307,7 @@ def submit():
         weight_model=config.WEIGHT_MODEL_SIGNAL,
         weight_style=config.WEIGHT_STYLE_SIGNAL,
         duration_ms=elapsed_ms(start),
+        model_warm=model_warm,
     )
 
     return jsonify({
