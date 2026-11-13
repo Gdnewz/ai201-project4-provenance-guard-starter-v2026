@@ -636,7 +636,6 @@ After the one change in Milestone 5, 19 of 56 attacks still come out BROKE, crit
 **5. Things I did not fully measure.** RQ08 and RQ09 (unparseable and empty bodies) came back 429 in both the attack run and the rerun, so I have not seen their new error message. Criterion 3 was judged on status codes, not on the error text. An appeal for an unknown content_id returns a 404 but leaves no entry in the audit log, so that kind of probing is invisible. What I'd do: wait out the rate limit and re-send RQ08 and RQ09, record the message text in `run_eval.py`, and log rejected appeals. Why I stopped: they are small, but they came up after my last runs.
 
 **The trade I'd make if this ran for real:** I would accept more AI text getting through in order to make fewer wrong accusations, by raising the threshold for `ai` and sending the middle to a person instead of a label. A writer who is wrongly accused pays for it in their reputation and has to prove a negative, while missed AI text costs the people who rely on the service a little more checking, so the cost of the error should sit with the side that can better afford it.
-
 <!-- ═════════════════════════════════════════════════════════════════════
 
      SUBMISSION CHECKLIST — unit 7
@@ -673,3 +672,17 @@ After the one change in Milestone 5, 19 of 56 attacks still come out BROKE, crit
 ---
 
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
+
+## Capstone
+
+**What This Extends**
+
+This extends Provenance Guard, the Flask service from Project 4. It already scores text with a gpt2 signal and a style signal, labels it, takes appeals, rate limits callers and writes an audit log. What is new is the operational layer: a documented way to start the service on its own, a duration on every request that reaches `/submit`, and a script that reads the audit log and reports how the service behaved.
+
+**The Shape**
+
+Shape A (deploy and instrument), on path B (run locally with a committed log). The extension is one documented start command in `RUNNING.md` (with a Dockerfile as the container version of it), a `duration_ms` field on every request that reaches `/submit` in the audit log, and a script that reads `logs/audit.jsonl` and prints request counts, rejections, and p50 and p95 latency. I am not hosting it because the service loads gpt2 locally, and the free host's memory is too small for that.
+
+**Out of Scope**
+
+I am not adding a new signal, changing the scoring or the thresholds, rebuilding the interface, or hosting it in the cloud. I am not fixing the false positives from Project 4. Fixing them means changing how the signals are combined, which is a different extension, and my Project 4 write-up already records the trade it carries.
