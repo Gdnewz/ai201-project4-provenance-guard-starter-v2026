@@ -31,6 +31,7 @@ import audit
 import config
 import scoring
 import stylometry 
+import time
 
 app = Flask(__name__)
 
@@ -214,6 +215,10 @@ def check_submission(payload):
 
 
 # ── YOU BUILD THIS ────────────────────────────────────────────────────────────
+def elapsed_ms(start):
+    """Milliseconds since `start` (a time.perf_counter() reading), rounded to 2 decimals."""
+    return round((time.perf_counter() - start) * 1000, 2)
+
 
 @app.post("/submit")
 @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
@@ -264,18 +269,19 @@ def submit():
     what should this do when `text` is missing, empty, or enormous? A crash on
     a malformed input is one of the most common real failures there is.
     """
+    start = time.perf_counter()
     payload = request.get_json(silent=True)
 
     creator_id, text, problem = check_submission(payload)
     if problem:
         reason, message = problem
-        audit.log_rejection(creator_id=creator_id, reason=reason)
+        audit.log_rejection(creator_id=creator_id, reason=reason, duration_ms=elapsed_ms(start))
         return jsonify({"error": reason, "message": message}), 400
 
     try:
         model_score = detector.model_signal(text)
     except ValueError:
-        audit.log_rejection(creator_id=creator_id, reason="text_too_short")
+        audit.log_rejection(creator_id=creator_id, reason="text_too_short", duration_ms=elapsed_ms(start))
         return jsonify({
             "error": "text_too_short",
             "message": "that text is too short to score, please send a few sentences",
@@ -299,6 +305,7 @@ def submit():
         human_threshold=config.HUMAN_THRESHOLD,
         weight_model=config.WEIGHT_MODEL_SIGNAL,
         weight_style=config.WEIGHT_STYLE_SIGNAL,
+        duration_ms=elapsed_ms(start),
     )
 
     return jsonify({
