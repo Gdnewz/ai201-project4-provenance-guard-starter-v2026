@@ -686,7 +686,7 @@ Shape A (deploy and instrument), on path B (run locally with a committed log). T
 
 **Running It**
 
-Path B: the service runs locally, and the evidence is the committed audit log. From a clean clone: create and activate a virtual environment, run `pip install -r requirements-pinned.txt`, then `python test.py`, `python detector.py` and `python app.py`. [RUNNING.md](RUNNING.md) has the full steps, the Python version (3.11.9), the pinned dependencies and the gpt2 model (551.0 MB, downloaded on first use). The first scoring request after a start takes 6.2 to 11.6 seconds in the cold starts I measured (more in Run Log and Verdicts), because gpt2 loads then. I tested these steps from a clean clone on 2026-11-13. The first attempt failed because `requirements-pinned.txt` had not been pushed, and I fixed that.
+Path B: the service runs locally, and the evidence is the committed audit log. From a clean clone: create and activate a virtual environment, run `pip install -r requirements-pinned.txt`, then `python test.py`, `python detector.py` and `python app.py`. [RUNNING.md](RUNNING.md) has the full steps, the Python version (3.11.9), the pinned dependencies and the gpt2 model (551.0 MB, downloaded on first use). Before the improvement described in The Improvement, the first scoring request after a start took 5.7 to 11.6 seconds in the cold starts I measured, because transformers and gpt2 loaded then. Now the tokenizer is prepared at start, so start-up takes about 6.4 seconds and the first scoring request about 0.8 seconds (1.73 seconds in one later run). I tested these steps from a clean clone on 2026-11-13. The first attempt failed because `requirements-pinned.txt` had not been pushed, and I fixed that.
 
 **Instrumentation**
 
@@ -716,3 +716,157 @@ Eleven entries from one session (the first one is the cold start, `model_warm` f
 One request is one POST to `/submit` with a 134 character paragraph. The cost is seconds of server compute, taken from `duration_ms` in the audit log. There is no API spend, because the model runs locally. I ran 11 requests with `measure_cost.py` (`results/cost_run_20261113173324.md`) right after a fresh start, each under its own `creator_id`. The first was the cold start at 11,573.05 ms. The other ten were warm: mean 79.31 ms, median 79.40 ms, range 64.22 to 95.93 ms. Two other cold starts that day took 8,346.66 and 10,063.77 ms. The rest of my cold start measurements are in Run Log and Verdicts.
 
 For a hundred requests a day: 100 x 0.07931 s = 7.93 s of compute. If the service is restarted once a day, add one cold start: 7.93 s + 11.57 s = 19.50 s. The paragraph is short and a longer text would cost more. Ten warm runs on one laptop is a small sample, and an earlier pair of warm runs was about 55 ms, so I treat the figure as roughly 0.06 to 0.1 seconds per request.
+
+After the improvement, the cost of a restart is about 6.4 seconds of start-up and about 0.8 seconds on the first scoring request, against about 0.6 seconds of start-up and about 6.3 seconds on the first request before. The total is about 7 seconds either way.
+
+**Run Log and Verdicts**
+
+My five criteria are in `criteria.md`, committed as "add capstone criteria" before any trial ran, and reworded once before any trial in 956fbe6. Every run I made is in `results/`, and the table lists them by the time they started (UTC). I report all of them, including runs that missed. For criteria 2, 3 and 5 the three columns are the first three runs in time order, not the best three.
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Clean clone | `test.py` 9 passed and 0 failed, `model_signal` 0.866 to 0.906, `/health` ok with gpt2 | all three hold (17:11) | all three hold (17:14) | all three hold (17:15) | **MET** |
+| 2. Warm speed | p95 at most 98 ms | 105.61 ms (16:45) | 94.81 ms (16:47) | 91.21 ms (16:50) | **MISSED** (run 1) |
+| 3. Cold start | first request after each of 3 restarts at most 8.5 s | 5.66, 5.82, 7.37 s (16:57:05) | **8.99**, 6.78, 6.55 s (16:57:58) | 6.36, 6.31, 6.25 s (16:59:21) | **MISSED** (run 2) |
+| 4. Coverage | 100 percent of timed entries carry both fields | 10 of 10 (16:54:13) | 10 of 10 (16:54:24) | 10 of 10 (16:54:26) | **MET** |
+| 5. Failure case | `"a"` as the first request at most 3 s | 9.66 s | 6.23 s | 6.12 s | **MISSED** (all three) |
+
+*Notes on the runs.* Criterion 1: my first script version looked for the words "9 of 9", which `test.py` does not print (it prints "9 passed, 0 failed, 0 to look at, 0 skipped"), so its first three runs (17:04, 17:06, 17:07) marked check 1 as FAIL while the output showed 9 passed. I fixed the pattern and reran three times; those reruns are the three columns above, and the first three result files are kept. Criterion 2: run 1 started on a server that was already running, so its first request was `model_warm` true but still took 1,290.24 ms, and the whole run was slower (median 73.86 ms against 62.73 and 76.46 ms). Dropping that first request still leaves a p95 near 100.8 ms (calculated from the table in `results/cost_run_20261114164531.md`), above 98. Runs 2 and 3 restarted the server first. Criteria 3 and 5: I ran the script five times before changing any code (16:57:05, 16:57:58, 16:59:21, 17:00:05 and 17:00:57). Runs D and E (17:00:05 and 17:00:57) have first requests of 6.34 to 6.80 s and 6.24 to 6.52 s and `"a"` at 6.51 and 6.29 s, so they do not change either verdict. The two earliest files are named `cold_trial2_20261114165705.txt` and `cold_trial3qq_20261114165758.txt` because of how I typed the trial number, and I kept them as they are. The trials in the project folder ran with the system Python 3.11.9 and the pinned packages (PyTorch 2.14.0+cpu), because the virtual environment was not active in that terminal. The clean clone trials each used a fresh virtual environment. The targets were set after baseline runs (`results/cost_run_20261113173324.md` and `results/cost_run_20261114144217.md`), which are not counted as trials.
+
+Real output from the trials, pasted as text. Criterion 1, produced by `check_clone.py` (clone 17:11:16 UTC):
+
+```
+Clone trial 1, started 20261114171116 UTC
+repo: https://github.com/Gdnewz/ai201-project4-provenance-guard-starter-v2026.git
+
+git clone: exit code 0
+python -m venv: exit code 0
+pip install -r requirements-pinned.txt: exit code 0 (131 s)
+python test.py: exit code 0, passed=9, failed=0, 9 passed and 0 failed: True
+    9 passed, 0 failed, 0 to look at, 0 skipped
+python detector.py: exit code 0, model_signal = 0.8864, window 0.866 to 0.906
+GET /health: {"detector_loaded": false, "detector_model": "gpt2", "log_entries": 142, "ok": true, "rate_limiting": true}
+
+check 1, test.py 9 of 9:          PASS
+check 2, model_signal in window:  PASS
+check 3, /health ok and gpt2:     PASS
+VERDICT: MET
+```
+
+Criterion 2, the missed run, produced by `summarize_log.py --since 2026-11-14T16:45:00`, which reads `duration_ms` and `model_warm` from `logs/audit.jsonl`:
+
+```
+Provenance Guard log summary: logs/audit.jsonl
+  entries read: 562   unreadable lines skipped: 0
+  only entries at or after 2026-11-14T16:45:00 (UTC): 31 kept
+  submissions: 31  (decided 31, rejected 0)
+  timed submissions: 31   without duration_ms: 0
+  latency (duration_ms, from the start of /submit to just before the log write):
+    all timed: n=31  p50=73.86 ms  p95=105.61 ms  max=1290.24 ms
+    warm (model already loaded): n=31  p50=73.86 ms  p95=105.61 ms  max=1290.24 ms
+    cold (first request, model loading): none
+```
+
+The third run for criterion 2 (`--since 2026-11-14T16:50:00`), which passed:
+
+```
+    all timed: n=31  p50=76.72 ms  p95=108.60 ms  max=7577.50 ms
+    warm (model already loaded): n=30  p50=76.46 ms  p95=91.21 ms  max=125.33 ms
+    cold (first request, model loading): n=1, 7577.50 ms (too few for percentiles)
+```
+
+Criteria 3 and 5, the run that missed, produced by `check_cold.py` (file `results/cold_trial3qq_20261114165758.txt`). It starts `python app.py`, sends one request, reads the log line and stops the server:
+
+```
+Cold trial 3qq, started 20261114165758 UTC
+
+Criterion 3: first request after each of 3 restarts (normal paragraph)
+  restart 1: status 200, duration_ms=8988.27, model_warm=False
+  restart 2: status 200, duration_ms=6777.36, model_warm=False
+  restart 3: status 200, duration_ms=6551.8, model_warm=False
+  limit 8500 ms for every one of the 3
+  CRITERION 3 VERDICT: MISSED
+
+Criterion 5: first request after a restart is "a"
+  status 400, duration_ms=6227.48, model_warm=False, reason=text_too_short
+  limit 3000 ms
+  CRITERION 5 VERDICT: MISSED
+```
+
+Criterion 4, produced by `check_coverage.py` (trial 1), which sends 8 normal requests, one empty text and one `"a"`, each under its own `creator_id`, then reads the new lines from `logs/audit.jsonl`:
+
+```
+Criterion 4 trial 1, started 20261114165413 UTC
+requests sent: 10
+
+request 01 (normal): status 200
+request 02 (normal): status 200
+request 03 (normal): status 200
+request 04 (normal): status 200
+request 05 (normal): status 200
+request 06 (normal): status 200
+request 07 (normal): status 200
+request 08 (normal): status 200
+request 09 (empty text): status 400
+request 10 (one character): status 400
+
+log lines added by this trial:
+  decided      duration_ms=8978.89 model_warm=False reason=None
+  decided      duration_ms=69.39 model_warm=True reason=None
+  decided      duration_ms=50.35 model_warm=True reason=None
+  decided      duration_ms=55.58 model_warm=True reason=None
+  decided      duration_ms=65.65 model_warm=True reason=None
+  decided      duration_ms=76.05 model_warm=True reason=None
+  decided      duration_ms=49.84 model_warm=True reason=None
+  decided      duration_ms=60.18 model_warm=True reason=None
+  rejected     duration_ms=0.01 model_warm=True reason=empty_text
+  rejected     duration_ms=0.39 model_warm=True reason=text_too_short
+
+entries by kind: {'decided': 8, 'rejected': 2}
+timed entries with both duration_ms and model_warm: 10
+coverage: 100 percent
+VERDICT: MET
+```
+
+*Diagnosis of criterion 5.* The stage is the first request after a start, in `detector.py`. In the original code, `perplexity` called `_load()` (which loads the whole gpt2 model) before it tokenized the text, so the check that says "too short to score" ran after the most expensive step. That fits the numbers: a rejected `"a"` took 6.12 to 6.51 s, about the same as a real first request (6.24 to 6.80 s). The first fix I tried (tokenize first, refuse short text before loading the model weights) only saved about 0.5 s (see The Improvement), so the weights were a small part of the cost. I then timed the imports in a separate process: `import torch` took 1.51 s, `from transformers import AutoTokenizer` took 5.34 s and loading the tokenizer took 0.6 s (one measurement each). So the mechanism is that the first request pays for importing `transformers` and loading the tokenizer, about 5.9 s, before it can even decide the text is too short.
+
+*Diagnosis of criterion 3.* It is the same mechanism. The first real request after a start paid the import and tokenizer cost (about 5.9 s) plus the model weights, which gave the typical 6.2 to 6.8 s. The two misses (8.99 s in run 2, and 9.97 s in trial 4 after my first fix) were both restart 1 of a run, and the other 22 cold starts before my second change were between 5.66 and 7.37 s. I did not find out why restart 1 is sometimes 2 to 3 seconds slower, and I won't claim a cause.
+
+*Diagnosis of criterion 2.* The warm request path in `/submit` is dominated by gpt2 scoring (`detector.perplexity`) running on the CPU, but I did not time the stages inside `/submit` separately, so I can't say which stage is slow. What the runs do show is that identical code gave a p95 of 105.61, 94.81 and 91.21 ms, and the median moved with it (73.86, 62.73 and 76.46 ms), so the whole run was slower or faster and it was not one slow request that moved the p95. That points to the machine, not the code, but I did not test it.
+
+*Pattern.* Criteria 3 and 5 are one problem: work that should happen once, when the service starts, happens inside the first request. Criterion 2 is a different problem (run to run variation in warm requests), and my fix did not touch it.
+
+**The Improvement**
+
+The change is to prepare the tokenizer at server start instead of inside the first request. It took two steps, and I report both.
+
+Step 1, in `detector.py` (commit f423bbd): the tokenizer loads on its own (`_load_tokenizer`) and the text is tokenized before the model weights load, so text under 3 tokens is refused before the weights load. The rule is the same as before. Step 2 (commit fe96301): a new `detector.prepare()` imports `transformers` and loads the tokenizer, and `app.py::main` calls it just before the server starts (only in the process that serves, because Flask's debug reloader starts two). The model weights stay lazy, so `model_warm` still separates cold from warm. If the tokenizer is not downloaded, start-up prints a warning and the first request retries.
+
+Which diagnosis pointed at it: criterion 5 (the length check ran after the model load), then the import timings (about 5.9 s) once step 1 turned out to save only 0.5 s.
+
+| Measure | Before (runs A to E) | After step 1 (trials 4 to 6) | After step 2 (trials 7 to 9) |
+|---|---|---|---|
+| Criterion 5, `"a"` first | 9.66, 6.23, 6.12, 6.51, 6.29 s | 5.82, 5.94, 5.69 s | 0.86, 0.97, 0.89 ms |
+| Criterion 3, first real request | 5.66 to 8.99 s (15 cold starts, 1 over 8.5 s) | 6.18 to 9.97 s (9 cold starts, 1 over 8.5 s) | 0.74 to 1.21 s (9 cold starts, none over) |
+| Start-up until `/health` answers | 0.61, 0.62, 0.63 s | not measured | 6.19, 6.38, 6.57 s |
+
+The runs are `results/cold_trial*_*.txt` and `results/startup_before_20261114173755.txt` and `results/startup_after_20261114173859.txt`. A clean clone of the pushed code still passed all three checks after both steps (`results/clone_trial4_20261114172709.txt` and `results/clone_trial5_20261114174342.txt`).
+
+Did it help: criterion 5 is now met, because refusing text that is too short no longer pays any load cost. Criterion 3 now passes in all three runs, but I do not count that as the cold start being solved. The wait moved. A restart used to answer `/health` in 0.6 s and make the first writer wait about 6.3 s, and now it takes about 6.4 s to start and the first request takes about 0.8 s. From launching the server to the first scored answer that is about 7 s before and about 7.2 s after. What I bought is that a writer's request no longer sits for 6 seconds after a restart. While the server is starting, a request is refused instead of delayed, which could be worse for a caller. Criteria 1 and 4 and the warm path were not the target, and the warm speed (criterion 2) is unchanged by design.
+
+**What's Still Broken**
+
+1. Criterion 2 is still missed, and I did not fix it. Its p95 moved between 91 and 106 ms across three runs of the same code, and I never timed the stages inside `/submit`. What I would do: add a timing for the gpt2 forward pass and one for the style signal, and rerun on a quiet machine. Why I stopped: the improvement I chose was the one my diagnoses pointed at most clearly, and I did not want to guess at this one. I also did not lower the 98 ms target.
+2. The total wait after a restart is about the same (about 7 s). The first scored request still loads the model weights (0.74 to 1.21 s), and start-up is now 6 seconds slower. What I would do: load the weights at start too, which would make the first request fast but would also make `model_warm` always true, so I would have to change how the cold start is recorded. Why I stopped: that changes what the instrumentation means.
+3. I do not know why restart 1 of a run was sometimes 2 to 3 seconds slower before the change (8.99 s and 9.97 s). After the change I only measured start-up three times, so I cannot say whether the slow first start still happens.
+4. `python app.py` is the only way I tested. `gunicorn app:app` does not call `main()`, so it would not prepare the tokenizer. I did not test gunicorn.
+5. Limits of the measurements: one Windows laptop, one 134 character paragraph, the project folder trials ran without the virtual environment, and the warm path was re-measured once after the two code changes in `detector.py`: one extra run of 31 requests gave a warm p95 of 98.53 ms (n=30, median 79.84 ms, max 102.82 ms), compared with 105.61, 94.81 and 91.21 ms in the three trials before the change. That is 0.53 ms over the 98 ms target, so criterion 2 stays MISSED. I did not count this run as a fourth trial. I never measured the individual stages (tokenizing, model forward pass, style scoring, log write), so the spread between runs is still unexplained. The cold first request in that run took 1.73 s, longer than the 0.74 to 1.21 s measured in the earlier runs after the change, and I did not investigate it (`results/cost_run_20261114175120.md`).
+6. The false positives and the signals from Project 4 are untouched. That was out of scope.
+
+**How I Used AI**
+
+*Moment 1: the criteria.* I asked for help writing the five criteria. I kept asking for the whole text, and the assistant only gave me questions and then put my own answers and choices into the frame (target, reason, how it is measured). It also corrected mechanical mistakes I made: a median used as a p95, a number in milliseconds written as seconds, the wrong clone URL, and a criterion 5 target that the bug would already pass. I chose the numbers (98 ms, 8.5 s, 3 s, the 0.866 to 0.906 window) from the baseline runs I had measured, and I reworded the reasons. The frame and the order of the lines came from the assistant, so the criteria are mine in content and its assembly in form.
+
+*Moment 2: the trial scripts.* I am not a coder, so the assistant wrote `check_coverage.py`, `check_cold.py`, `check_clone.py` and `measure_startup.py`, and I ran them. The first version of `check_clone.py` looked for the text "9 of 9", which `test.py` does not print, so it marked three correct runs as FAIL. I read the output, saw 9 passed and 0 failed, had the pattern fixed and reran, and I kept the first three result files.
+
+*Moment 3: the fix, and a wrong explanation.* The assistant found that `perplexity` loaded the model before checking the length, and wrote the first fix. It only saved about 0.5 s, so I ran the import timings myself, and they showed 5.34 s for `transformers` and 0.6 s for the tokenizer. The second change (`prepare()` at start) came from that. Earlier, after three tidy cold-start runs, it also told me the model files were probably cached by the operating system. Two runs I had not shown it (one at 8.99 s) made that explanation weaker, so I changed my verdict for criterion 3 from MET to MISSED and I report all the runs.
