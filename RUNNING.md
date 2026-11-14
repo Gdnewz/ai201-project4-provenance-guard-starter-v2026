@@ -324,8 +324,8 @@ It serves http://127.0.0.1:5000. Rate limiting is on (3 per minute and 40 per da
 - Python 3.11.9.
 - Windows 11 with PowerShell. Use curl.exe, and --% before the arguments when a JSON body has quotes.
 - Dependencies: requirements-pinned.txt holds the seven direct dependencies at the exact versions this was run with. Their own dependencies are resolved by pip.
-- Model: gpt2 from Hugging Face, 551.0 MB on disk (measured with `huggingface-cli scan-cache`). It is downloaded once by `python detector.py` and loaded into memory on the first request that scores text. The first request that scores text (cold) took 7.1 to 11.6 seconds across four measurements. Later requests (warm) averaged 79.31 ms server side over ten runs, range 64.22 to 95.93 ms (`results/cost_run_20261113173324.md`).
-- Tested from a clean clone on 2026-11-13: a fresh virtual environment, `pip install -r requirements-pinned.txt`, `python test.py` (9 of 9 passed), `python detector.py` (model_signal 0.8864 on the sample) and `python app.py`, with `/health` answering. The first attempt failed because requirements-pinned.txt had not been pushed. Only the seven direct dependencies are pinned, so a few indirect ones (click, filelock, fsspec, regex) installed at slightly newer versions than the ones the timings were measured with.
+- Model: gpt2 from Hugging Face, 551.0 MB on disk in 7 files (measured with `huggingface-cli scan-cache`). It is downloaded once by `python detector.py` and loaded into memory on the first request that scores text. The first request that scores text (cold) took 6.2 to 11.6 seconds across the cold starts I measured. Later requests (warm) averaged 79.31 ms server side over ten runs, range 64.22 to 95.93 ms (`results/cost_run_20261113173324.md`). In three later trials the warm p95 was 105.61, 94.81 and 91.21 ms.
+- Tested from a clean clone on 2026-11-13: a fresh virtual environment, `pip install -r requirements-pinned.txt`, `python test.py` (9 passed, 0 failed), `python detector.py` (model_signal 0.8864 on the sample) and `python app.py`, with `/health` answering. The first attempt failed because requirements-pinned.txt had not been pushed. Only the seven direct dependencies are pinned, so a few indirect ones (click, filelock, fsspec, regex) installed at slightly newer versions than the ones the timings were measured with. I repeated the clean clone three times on 2026-11-14 with `check_clone.py`, and all three passed.
 
 **Setup from a clean clone**
 
@@ -347,3 +347,14 @@ It serves http://127.0.0.1:5000. Rate limiting is on (3 per minute and 40 per da
 Use a UTC time just before you start the service. The log is in UTC, 5 hours ahead of EST. Entries from before that time are left out.
 
 Every request that reaches /submit is written to logs/audit.jsonl with a duration_ms and a model_warm field. The log uses UTC.
+
+**Measure it**
+
+Stop any running server first for the last two scripts, because they start and stop the server themselves and need port 5000 free.
+
+    python measure_cost.py --runs 31
+    python check_coverage.py --trial 1
+    python check_cold.py --trial 1
+    python check_clone.py --trial 1
+
+`measure_cost.py` and `check_coverage.py` need the server running. Each script writes its result to `results/`.

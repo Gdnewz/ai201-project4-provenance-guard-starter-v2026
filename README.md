@@ -636,6 +636,7 @@ After the one change in Milestone 5, 19 of 56 attacks still come out BROKE, crit
 **5. Things I did not fully measure.** RQ08 and RQ09 (unparseable and empty bodies) came back 429 in both the attack run and the rerun, so I have not seen their new error message. Criterion 3 was judged on status codes, not on the error text. An appeal for an unknown content_id returns a 404 but leaves no entry in the audit log, so that kind of probing is invisible. What I'd do: wait out the rate limit and re-send RQ08 and RQ09, record the message text in `run_eval.py`, and log rejected appeals. Why I stopped: they are small, but they came up after my last runs.
 
 **The trade I'd make if this ran for real:** I would accept more AI text getting through in order to make fewer wrong accusations, by raising the threshold for `ai` and sending the middle to a person instead of a label. A writer who is wrongly accused pays for it in their reputation and has to prove a negative, while missed AI text costs the people who rely on the service a little more checking, so the cost of the error should sit with the side that can better afford it.
+
 <!-- ═════════════════════════════════════════════════════════════════════
 
      SUBMISSION CHECKLIST — unit 7
@@ -681,15 +682,11 @@ This extends Provenance Guard, the Flask service from Project 4. It already scor
 
 **The Shape**
 
-Shape A (deploy and instrument), on path B (run locally with a committed log). The extension is one documented start command in `RUNNING.md` (with a Dockerfile as the container version of it), a `duration_ms` field on every request that reaches `/submit` in the audit log, and a script that reads `logs/audit.jsonl` and prints request counts, rejections, and p50 and p95 latency. I am not hosting it because the service loads gpt2 locally, and the free host's memory is too small for that.
-
-**Out of Scope**
-
-I am not adding a new signal, changing the scoring or the thresholds, rebuilding the interface, or hosting it in the cloud. I am not fixing the false positives from Project 4. Fixing them means changing how the signals are combined, which is a different extension, and my Project 4 write-up already records the trade it carries.
+Shape A (deploy and instrument), on path B (run locally with a committed log). The extension is one documented start command in `RUNNING.md`, a `duration_ms` field on every request that reaches `/submit` in the audit log, and a script that reads `logs/audit.jsonl` and prints request counts, rejections, and p50 and p95 latency. I am not hosting it because the service loads gpt2 locally, and the free host's memory is too small for that. Out of scope: I am not adding a new signal, changing the scoring or the thresholds, rebuilding the interface, or hosting it in the cloud. I am not fixing the false positives from Project 4. Fixing them means changing how the signals are combined, which is a different extension, and my Project 4 write-up already records the trade it carries.
 
 **Running It**
 
-Path B: the service runs locally, and the evidence is the committed audit log. From a clean clone: create and activate a virtual environment, run `pip install -r requirements-pinned.txt`, then `python test.py`, `python detector.py` and `python app.py`. [RUNNING.md](RUNNING.md) has the full steps, the Python version (3.11.9), the pinned dependencies and the gpt2 model (551.0 MB, downloaded on first use). The first scoring request after a start takes 7.1 to 11.6 seconds in my four measured cold starts, because gpt2 loads then. I tested these steps from a clean clone on 2026-11-13. The first attempt failed because `requirements-pinned.txt` had not been pushed, and I fixed that.
+Path B: the service runs locally, and the evidence is the committed audit log. From a clean clone: create and activate a virtual environment, run `pip install -r requirements-pinned.txt`, then `python test.py`, `python detector.py` and `python app.py`. [RUNNING.md](RUNNING.md) has the full steps, the Python version (3.11.9), the pinned dependencies and the gpt2 model (551.0 MB, downloaded on first use). The first scoring request after a start takes 6.2 to 11.6 seconds in the cold starts I measured (more in Run Log and Verdicts), because gpt2 loads then. I tested these steps from a clean clone on 2026-11-13. The first attempt failed because `requirements-pinned.txt` had not been pushed, and I fixed that.
 
 **Instrumentation**
 
@@ -716,6 +713,6 @@ Eleven entries from one session (the first one is the cold start, `model_warm` f
 
 **What It Costs**
 
-One request is one POST to `/submit` with a 134 character paragraph. The cost is seconds of server compute, taken from `duration_ms` in the audit log. There is no API spend, because the model runs locally. I ran 11 requests with `measure_cost.py` (`results/cost_run_20261113173324.md`) right after a fresh start, each under its own `creator_id`. The first was the cold start at 11,573.05 ms. The other ten were warm: mean 79.31 ms, median 79.40 ms, range 64.22 to 95.93 ms. My other three cold starts took 7,108.38, 8,346.66 and 10,063.77 ms.
+One request is one POST to `/submit` with a 134 character paragraph. The cost is seconds of server compute, taken from `duration_ms` in the audit log. There is no API spend, because the model runs locally. I ran 11 requests with `measure_cost.py` (`results/cost_run_20261113173324.md`) right after a fresh start, each under its own `creator_id`. The first was the cold start at 11,573.05 ms. The other ten were warm: mean 79.31 ms, median 79.40 ms, range 64.22 to 95.93 ms. Two other cold starts that day took 8,346.66 and 10,063.77 ms. The rest of my cold start measurements are in Run Log and Verdicts.
 
 For a hundred requests a day: 100 x 0.07931 s = 7.93 s of compute. If the service is restarted once a day, add one cold start: 7.93 s + 11.57 s = 19.50 s. The paragraph is short and a longer text would cost more. Ten warm runs on one laptop is a small sample, and an earlier pair of warm runs was about 55 ms, so I treat the figure as roughly 0.06 to 0.1 seconds per request.
