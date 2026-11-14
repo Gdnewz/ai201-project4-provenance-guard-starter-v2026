@@ -53,23 +53,53 @@ class DetectorUnavailable(RuntimeError):
     """The model couldn't be loaded — no download yet, or no disk."""
 
 
+def _load_tokenizer():
+    """
+    Load only the tokenizer and keep it. It is small and quick, so input can be
+    checked for length BEFORE the slow model load (capstone criterion 5).
+    """
+    global _tokenizer
+    if _tokenizer is not None:
+        return _tokenizer
+
+    try:
+        from transformers import AutoTokenizer
+    except ImportError as exc:
+        raise DetectorUnavailable(
+            f"transformers isn't installed ({exc}).\n"
+            f"Run: pip install -r requirements.txt"
+        ) from exc
+
+    try:
+        _tokenizer = AutoTokenizer.from_pretrained(config.DETECTOR_MODEL)
+    except Exception as exc:  # noqa: BLE001
+        raise DetectorUnavailable(
+            f"Couldn't load the tokenizer for '{config.DETECTOR_MODEL}': {exc}\n"
+            f"The first run downloads about 550 MB — check your connection and "
+            f"that you have disk space free."
+        ) from exc
+
+    return _tokenizer
+
+
 def _load():
     """Load the model once and keep it. First call downloads ~550 MB."""
-    global _model, _tokenizer
+    global _model
     if _model is not None:
         return _model, _tokenizer
 
     try:
         import torch  # noqa: F401
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM
     except ImportError as exc:
         raise DetectorUnavailable(
             f"transformers or torch isn't installed ({exc}).\n"
             f"Run: pip install -r requirements.txt"
         ) from exc
 
+    tokenizer = _load_tokenizer()
+
     try:
-        _tokenizer = AutoTokenizer.from_pretrained(config.DETECTOR_MODEL)
         _model = AutoModelForCausalLM.from_pretrained(config.DETECTOR_MODEL)
         _model.eval()
     except Exception as exc:  # noqa: BLE001
@@ -79,7 +109,7 @@ def _load():
             f"that you have disk space free."
         ) from exc
 
-    return _model, _tokenizer
+    return _model, tokenizer
 
 
 def perplexity(text: str) -> float:
@@ -90,21 +120,23 @@ def perplexity(text: str) -> float:
     but that range shifts with topic and length, which is one reason the raw
     number isn't what you score on.
     """
-    import torch
-
-    model, tokenizer = _load()
-
-    encoded = tokenizer(
+    # Tokenize first, with the tokenizer alone, so text that is too short is
+    # refused BEFORE the model loads. Same rule as before, checked earlier.
+    tokenizer = _load_tokenizer()
+    ids = tokenizer(
         text,
-        return_tensors="pt",
         truncation=True,
         max_length=config.DETECTOR_MAX_TOKENS,
-    )
-    input_ids = encoded["input_ids"]
+    )["input_ids"]
 
     # Two tokens is not enough to be surprised by anything.
-    if input_ids.shape[1] < 3:
+    if len(ids) < 3:
         raise ValueError("Text is too short to score — a few sentences at least.")
+
+    import torch
+
+    model, _ = _load()
+    input_ids = torch.tensor([ids])
 
     with torch.no_grad():
         output = model(input_ids, labels=input_ids)
