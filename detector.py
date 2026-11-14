@@ -167,6 +167,15 @@ def model_signal(text: str) -> float:
     return round(min(max(score, 0.0), 1.0), 4)
 
 
+def prepare() -> None:
+    """
+    Import transformers and load the tokenizer now, at server start, so the
+    first request does not pay for them (about 6 s on my laptop). The model
+    weights stay lazy, so model_warm still separates cold from warm.
+    """
+    _load_tokenizer()
+
+
 def warm_up() -> str:
     """Load the model without scoring anything. Run this before class."""
     _load()

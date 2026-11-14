@@ -24,6 +24,7 @@ Routes:
     GET  /health      is the service up, and is the model loaded
 """
 
+import os
 import uuid
 import detector 
 from flask import Flask, jsonify, request
@@ -401,6 +402,15 @@ def main():
     print('    -H "Content-Type: application/json" \\')
     print("    -d '{\"message\": \"hello\"}'")
     print()
+    # Pay the transformers import and the tokenizer load now, not inside the first
+    # request (capstone criterion 5). With the debug reloader only the child
+    # process serves, so only the child prepares. The model weights stay lazy.
+    if not config.DEBUG or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        print("  preparing tokenizer (about 6 seconds)...", flush=True)
+        try:
+            detector.prepare()
+        except detector.DetectorUnavailable as exc:
+            print(f"  warning: tokenizer not prepared, first request will retry: {exc}")
     # debug=True hands out an interactive debugger, so it's local-only — see config.py
     app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)
 
