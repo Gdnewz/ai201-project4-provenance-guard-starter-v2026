@@ -102,25 +102,23 @@ clear message lets them fix it and try again.
 ---
 ## Capstone
 
-## Capstone
-
 1. Clean-clone setup
    - Measured by: a fresh `git clone https://github.com/Gdnewz/ai201-project4-provenance-guard-starter-v2026.git`, a new virtual environment, and `requirements-pinned.txt`
      - `python test.py` reports 9 of 9 passed
      - `python detector.py` prints a model_signal between 0.866 and 0.906 (about 0.02 either side of the 0.8864 I measured)
      - after `python app.py`, GET /health returns "ok": true and "detector_model": "gpt2"
    - Target: all three hold
-   - Reason: so a stranger can reproduce my setup exactly. (Your own words here.)
+   - Reason: a stranger who clones the repo should get the same results I did. If one of the three checks fails, a file or a setup step is missing or different, and the next person would hit the same mistake.
 
 2. Warm request speed
    - Measured by: server duration_ms of 30 warm requests (model_warm true), each sending the 134-character paragraph from measure_cost.py (`python measure_cost.py --runs 31`), p95 from summarize_log.py
    - Target: p95 at most 98 ms
-   - Reason: (waiting too long might push a writer to another service, plus why 98)
+   - Reason: waiting too long might affect a writer's use of the service, and they might decide to use a different one. I left room above my 85.83 ms baseline p95 because a longer text or a different machine could be slower.
 
 3. Cold start
    - Measured by: server duration_ms where model_warm is false, the first request after each of 3 restarts
    - Target: every one of the 3 at most 8.5 seconds
-   - Reason: (8.5 s is the mean of my 6 cold starts, and attention drifts at about 10 s)
+   - Reason: a writer should not wait too long, even after the server restarts. 8.5 seconds is the mean of my 6 cold starts, and around 10 seconds a writer's attention starts to drift.
 
 4. Instrumentation coverage
    - Measured by: the log after sending 10 requests, at least one of them rejected
