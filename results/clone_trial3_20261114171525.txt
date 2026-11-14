@@ -1,0 +1,21 @@
+Clone trial 3, started 20261114171525 UTC
+repo: https://github.com/Gdnewz/ai201-project4-provenance-guard-starter-v2026.git
+temporary folder: C:\Users\funmi\AppData\Local\Temp\pg_clone_t3_sce_oj_3
+
+git clone: exit code 0
+python -m venv: exit code 0
+pip install -r requirements-pinned.txt: exit code 0 (54 s)
+python test.py: exit code 0, passed=9, failed=0, 9 passed and 0 failed: True
+             already downloaded
+    [PASS] The service
+             /ping answers � the starter works before you edit it
+    ------------------------------------------------------------
+    9 passed, 0 failed, 0 to look at, 0 skipped
+    You're set. See you in class.
+python detector.py: exit code 0, model_signal = 0.8864, window 0.866 to 0.906
+GET /health: {"detector_loaded": false, "detector_model": "gpt2", "log_entries": 142, "ok": true, "rate_limiting": true}
+
+check 1, test.py 9 of 9:          PASS
+check 2, model_signal in window:  PASS
+check 3, /health ok and gpt2:     PASS
+VERDICT: MET

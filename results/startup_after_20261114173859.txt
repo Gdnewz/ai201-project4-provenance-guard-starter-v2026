@@ -1,0 +1,7 @@
+Startup time (after), started 20261114173859 UTC
+seconds from launching python app.py until GET /health answers
+
+  start 1: 6.57 s
+  start 2: 6.38 s
+  start 3: 6.19 s
+  median 6.38 s, min 6.19 s, max 6.57 s

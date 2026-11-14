@@ -1,0 +1,33 @@
+Criterion 4 trial 3, started 20261114165426 UTC
+requests sent: 10
+
+request 01 (normal): status 200
+request 02 (normal): status 200
+request 03 (normal): status 200
+request 04 (normal): status 200
+request 05 (normal): status 200
+request 06 (normal): status 200
+request 07 (normal): status 200
+request 08 (normal): status 200
+request 09 (empty text): status 400
+request 10 (one character): status 400
+
+log lines added by this trial:
+  decided      duration_ms=42.62 model_warm=True reason=None
+  decided      duration_ms=66.11 model_warm=True reason=None
+  decided      duration_ms=68.23 model_warm=True reason=None
+  decided      duration_ms=53.87 model_warm=True reason=None
+  decided      duration_ms=56.84 model_warm=True reason=None
+  decided      duration_ms=63.5 model_warm=True reason=None
+  decided      duration_ms=66.26 model_warm=True reason=None
+  decided      duration_ms=48.64 model_warm=True reason=None
+  rejected     duration_ms=0.01 model_warm=True reason=empty_text
+  rejected     duration_ms=0.36 model_warm=True reason=text_too_short
+
+entries by kind: {'decided': 8, 'rejected': 2}
+timed entries (decided + rejected, excluding rate limited): 10
+timed entries with both duration_ms and model_warm: 10
+rejected entries seen: 2
+rate limited entries (excluded): 0
+coverage: 100 percent
+VERDICT: MET

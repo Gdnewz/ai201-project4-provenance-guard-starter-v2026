@@ -1,0 +1,13 @@
+Cold trial 6, started 20261114173301 UTC
+
+Criterion 3: first request after each of 3 restarts (normal paragraph)
+  restart 1: status 200, duration_ms=6284.25, model_warm=False
+  restart 2: status 200, duration_ms=6176.59, model_warm=False
+  restart 3: status 200, duration_ms=6371.96, model_warm=False
+  limit 8500 ms for every one of the 3
+  CRITERION 3 VERDICT: MET
+
+Criterion 5: first request after a restart is "a"
+  status 400, duration_ms=5689.35, model_warm=False, reason=text_too_short
+  limit 3000 ms
+  CRITERION 5 VERDICT: MISSED
